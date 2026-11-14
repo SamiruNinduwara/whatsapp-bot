@@ -76,6 +76,7 @@ async function startBot() {
 
   sock.ev.on("group-participants.update", (ev) => handleGroupUpdate(sock, ev));
 }
-
+import { config } from "./config.js";
+console.log(`${config.botName} V ${config.version} by ${config.developer}`);
 await loadCommands();
 startBot();
