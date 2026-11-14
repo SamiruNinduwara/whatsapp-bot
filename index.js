@@ -1,3 +1,4 @@
+import { initReminders } from "./reminders.js";
 import makeWASocket, {
   useMultiFileAuthState,
   DisconnectReason,

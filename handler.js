@@ -24,9 +24,11 @@ export async function handleMessage(sock, msg) {
   const jid = msg.key.remoteJid;
   if (jid === "status@broadcast") return;
 
-  const text =
+   const text =
     msg.message.conversation ||
     msg.message.extendedTextMessage?.text ||
+    msg.message.imageMessage?.caption ||
+    msg.message.videoMessage?.caption ||
     "";
   if (!text.startsWith(config.prefix)) return;
 
