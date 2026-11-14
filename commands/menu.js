@@ -6,7 +6,7 @@ import { sendWithLogo } from "../branding.js";
 const TABS = [
   { key: "ai", emoji: "🤖", title: "AI", commands: ["ai", "stt"] },
   { key: "dl", emoji: "🎵", title: "Downloaders", commands: ["mp3", "mp4", "tiktok", "dl"] },
-  { key: "tools", emoji: "🛠️", title: "Tools", commands: ["sticker", "remind", "weather", "rates"] },
+    { key: "tools", emoji: "🛠️", title: "Tools", commands: ["sticker", "remind", "weather", "rates", "fuel", "fuelset", "fuelcheck"] },
   {
     key: "group",
     emoji: "👥",

@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { startFuelWatcher } from "./fuelAuto.js";
 import dns from "dns";
 dns.setDefaultResultOrder("ipv4first"); // prefer IPv4 (fixes many Termux timeouts)
 import makeWASocket, {
@@ -39,6 +40,7 @@ async function startBot() {
 
   throttleSends(sock);
   initReminders(sock);
+  startFuelWatcher(sock);
 
   // First time only: ask for a pairing code
   if (!sock.authState.creds.registered) {
