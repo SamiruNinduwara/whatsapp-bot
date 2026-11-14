@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { announceRestart } from "./restartNotice.js";
 import { startFuelWatcher } from "./fuelAuto.js";
 import dns from "dns";
 dns.setDefaultResultOrder("ipv4first"); // prefer IPv4 (fixes many Termux timeouts)
@@ -57,7 +58,10 @@ async function startBot() {
   sock.ev.on("creds.update", saveCreds);
 
   sock.ev.on("connection.update", ({ connection, lastDisconnect }) => {
-    if (connection === "open") console.log("✅ Bot online!");
+    if (connection === "open") {
+      console.log("✅ Bot online!");
+      announceRestart(sock); // tells the chat that asked for a restart (only after .restart)
+    }
 
     if (connection === "close") {
       const reason = lastDisconnect?.error?.output?.statusCode;
