@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { initReminders } from "./reminders.js";
 import makeWASocket, {
   useMultiFileAuthState,
@@ -19,6 +20,7 @@ async function startBot() {
     logger: pino({ level: "silent" }),
     browser: ["Ubuntu", "Chrome", "20.0.04"],
   });
+    initReminders(sock);
 
   if (!sock.authState.creds.registered) {
     if (!phoneNumber) {
