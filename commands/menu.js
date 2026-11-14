@@ -17,7 +17,7 @@ const TABS = [
     key: "general",
     emoji: "⚙️",
     title: "General",
-    commands: ["menu", "cmd", "ping", "owner", "status", "say", "restart"],
+    commands: ["menu", "cmd", "ping", "owner", "status", "say", "restart", "update"],
   },
 ];
 
