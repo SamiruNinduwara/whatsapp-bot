@@ -1,4 +1,5 @@
 import fs from "fs";
+import { normalizeMessageContent } from "@whiskeysockets/baileys";
 import { checkRate } from "./throttle.js";
 import path from "path";
 import { fileURLToPath, pathToFileURL } from "url";
@@ -27,12 +28,15 @@ export async function handleMessage(sock, msg) {
   if (!msg.message || msg.key.fromMe) return;
   const jid = msg.key.remoteJid;
   if (jid === "status@broadcast") return;
+    console.log(`[msg] chat=${jid} from=${msg.key.participant || jid} type=${Object.keys(msg.message).join(",")}`);
 
+    // Unwrap disappearing-message / view-once wrappers so group messages are read too
+  const content = normalizeMessageContent(msg.message) || {};
   const text =
-    msg.message.conversation ||
-    msg.message.extendedTextMessage?.text ||
-    msg.message.imageMessage?.caption ||
-    msg.message.videoMessage?.caption ||
+    content.conversation ||
+    content.extendedTextMessage?.text ||
+    content.imageMessage?.caption ||
+    content.videoMessage?.caption ||
     "";
 
   const isGroup = jid.endsWith("@g.us");
