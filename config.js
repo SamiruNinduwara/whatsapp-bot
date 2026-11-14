@@ -6,5 +6,9 @@ export const config = {
   ownerNumber: "94765579961", // your main number, shown by .owner
   github: "https://github.com/SamiruNinduwara", // optional
   useLogo: true, // set to false to send menus as plain text (no image)
+  maxDownloadMB: 2048, // biggest download for everyone (WhatsApp's limit is 2 GB = 2048 MB)
+  userMaxDownloadMB: 2048, // biggest file for non-owners using .dl
+  maxMediaMinutes: 120, // longest YouTube / TikTok / Facebook video, in minutes
+  userDailyDownloads: 10, // .dl downloads per user per day
   owners: ["94765579961", "249396520317017"], // owner IDs (digits only)
 };

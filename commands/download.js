@@ -4,6 +4,7 @@ import {
   MAX_MB,
   MAX_BYTES,
   NON_OWNER_MB,
+  MAX_MINUTES,
   DAILY_LIMIT,
   YOUTUBE_HOSTS,
   TIKTOK_HOSTS,
@@ -22,6 +23,27 @@ import {
   removeDir,
   explainError,
 } from "../downloadUtils.js";
+
+const BIG_MEDIA_BYTES = 64 * 1024 * 1024; // above this, send as a document
+
+// Sends a file from disk. Small audio/video goes as normal media; big files go as documents
+// (streamed from disk, so a 2 GB file does not fill the phone's RAM).
+async function sendFromDisk(sock, jid, msg, filePath, { type, mimetype, fileName, caption }) {
+  const { size } = await fs.stat(filePath);
+
+  if (type !== "document" && size <= BIG_MEDIA_BYTES) {
+    const data = await fs.readFile(filePath);
+    const content =
+      type === "audio" ? { audio: data, mimetype } : { video: data, mimetype, caption };
+    return sock.sendMessage(jid, content, { quoted: msg });
+  }
+
+  return sock.sendMessage(
+    jid,
+    { document: { url: filePath }, mimetype, fileName, caption },
+    { quoted: msg }
+  );
+}
 
 // Shared flow: cooldown -> queue -> temp folder -> job -> cleanup
 async function runDownload(ctx, job) {
@@ -69,7 +91,7 @@ const mp3 = {
       }
       target = url.toString();
     } else {
-      target = `ytsearch1:${query}`;
+      target = `ytsearch1:${query}`; // search and take the first result
     }
 
     await runDownload(ctx, async (dir) => {
@@ -78,7 +100,7 @@ const mp3 = {
         "--audio-format", "mp3",
         "--audio-quality", "5",
         "--max-filesize", `${MAX_MB}M`,
-        "--match-filter", "duration<=600",
+        "--match-filter", `duration<=?${MAX_MINUTES * 60}`,
         "-o", path.join(dir, "audio.%(ext)s"),
         target,
       ]);
@@ -86,44 +108,11 @@ const mp3 = {
       const file = (await fs.readdir(dir)).find((f) => f.endsWith(".mp3"));
       if (!file) throw new Error("NO_OUTPUT");
 
-      const audio = await fs.readFile(path.join(dir, file));
-      await sock.sendMessage(jid, { audio, mimetype: "audio/mpeg" }, { quoted: msg });
-    });
-  },
-};
-
-// ---------- .tiktok ----------
-const tiktok = {
-  name: "tiktok",
-  aliases: ["tt"],
-  description: "Download a TikTok video (.tiktok link)",
-  ownerOnly: false,
-  async run(ctx) {
-    const { sock, msg, jid, args } = ctx;
-    const reply = (text) => sock.sendMessage(jid, { text }, { quoted: msg });
-
-    const url = parseUrl(args[0] || "");
-    if (!url || !hostMatches(url, TIKTOK_HOSTS)) {
-      return reply("Use: .tiktok <TikTok link>");
-    }
-
-    await runDownload(ctx, async (dir) => {
-      await ytDlp([
-        "-f", "best[ext=mp4]/best",
-        "--max-filesize", `${MAX_MB}M`,
-        "-o", path.join(dir, "video.%(ext)s"),
-        url.toString(),
-      ]);
-
-      const file = (await fs.readdir(dir)).find((f) => f.startsWith("video."));
-      if (!file) throw new Error("NO_OUTPUT");
-
-      const video = await fs.readFile(path.join(dir, file));
-      await sock.sendMessage(
-        jid,
-        { video, mimetype: "video/mp4", caption: "✅ Here is your video" },
-        { quoted: msg }
-      );
+      await sendFromDisk(sock, jid, msg, path.join(dir, file), {
+        type: "audio",
+        mimetype: "audio/mpeg",
+        fileName: "audio.mp3",
+      });
     });
   },
 };
@@ -170,7 +159,7 @@ const mp4 = {
         "-f", format,
         "--merge-output-format", "mp4",
         "--max-filesize", `${MAX_MB}M`,
-        "--match-filter", "duration<=?600", // 10 minutes max
+        "--match-filter", `duration<=?${MAX_MINUTES * 60}`,
         "-o", path.join(dir, "video.%(ext)s"),
         url.toString(),
       ]);
@@ -182,16 +171,48 @@ const mp4 = {
       const { size } = await fs.stat(filePath);
       if (size > MAX_BYTES) throw new Error("TOO_BIG");
 
-      const video = await fs.readFile(filePath);
-      await sock.sendMessage(
-        jid,
-        {
-          video,
-          mimetype: "video/mp4",
-          caption: `✅ ${platform.name} video (up to ${quality}p)`,
-        },
-        { quoted: msg }
-      );
+      await sendFromDisk(sock, jid, msg, filePath, {
+        type: "video",
+        mimetype: "video/mp4",
+        fileName: "video.mp4",
+        caption: `✅ ${platform.name} video (up to ${quality}p)`,
+      });
+    });
+  },
+};
+
+// ---------- .tiktok ----------
+const tiktok = {
+  name: "tiktok",
+  aliases: ["tt"],
+  description: "Download a TikTok video (.tiktok link)",
+  ownerOnly: false,
+  async run(ctx) {
+    const { sock, msg, jid, args } = ctx;
+    const reply = (text) => sock.sendMessage(jid, { text }, { quoted: msg });
+
+    const url = parseUrl(args[0] || "");
+    if (!url || !hostMatches(url, TIKTOK_HOSTS)) {
+      return reply("Use: .tiktok <TikTok link>");
+    }
+
+    await runDownload(ctx, async (dir) => {
+      await ytDlp([
+        "-f", "best[ext=mp4]/best",
+        "--max-filesize", `${MAX_MB}M`,
+        "-o", path.join(dir, "video.%(ext)s"),
+        url.toString(),
+      ]);
+
+      const file = (await fs.readdir(dir)).find((f) => f.startsWith("video."));
+      if (!file) throw new Error("NO_OUTPUT");
+
+      await sendFromDisk(sock, jid, msg, path.join(dir, file), {
+        type: "video",
+        mimetype: "video/mp4",
+        fileName: "video.mp4",
+        caption: "✅ Here is your video",
+      });
     });
   },
 };
@@ -201,7 +222,7 @@ const dl = {
   name: "dl",
   aliases: ["download"],
   description: "Download a direct file link (.dl link)",
-  ownerOnly: false,
+  ownerOnly: false, // everyone can use it; non-owners have limits
   async run(ctx) {
     const { sock, msg, jid, args, sender, isOwner } = ctx;
     const reply = (text) => sock.sendMessage(jid, { text }, { quoted: msg });
@@ -222,22 +243,20 @@ const dl = {
       const dest = path.join(dir, "file");
       const info = await downloadFile(url.toString(), dest, limit);
 
+      // Build a safe file name from the final URL
       let name = "file";
       try {
         name = decodeURIComponent(path.basename(new URL(info.finalUrl).pathname)) || "file";
-      } catch {}
-
+      } catch {
+        // keep the default name
+      }
       name = name.replace(/[^\w.\- ]/g, "_").slice(0, 80);
-      const document = await fs.readFile(dest);
-      await sock.sendMessage(
-        jid,
-        {
-          document,
-          mimetype: info.type || "application/octet-stream",
-          fileName: name,
-        },
-        { quoted: msg }
-      );
+
+      await sendFromDisk(sock, jid, msg, dest, {
+        type: "document",
+        mimetype: info.type || "application/octet-stream",
+        fileName: name,
+      });
 
       if (!isOwner) await reply(`ℹ️ Downloads left today: ${dailyLeft(sender)}`);
     });

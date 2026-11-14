@@ -1,7 +1,7 @@
 // Per-user rate limiting and send throttling (looks less like a spam bot)
 
 const WINDOW_MS = 60_000;
-const MAX_COMMANDS = 10; // commands per user per minute
+const MAX_COMMANDS = 20; // commands per user per minute
 const hits = new Map();
 
 // Returns "ok", "warn" (first time over the limit) or "block" (ignore silently)
