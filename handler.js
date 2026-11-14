@@ -1,4 +1,5 @@
 import fs from "fs";
+import { checkRate } from "./throttle.js";
 import path from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 import { config } from "./config.js";
@@ -55,6 +56,18 @@ export async function handleMessage(sock, msg) {
   if (!cmd) return;
 
   console.log(`[cmd] .${name} from ${sender} (owner: ${isOwner})`);
+    // Rate limit (the owner is exempt)
+  if (!isOwner) {
+    const rate = checkRate(sender);
+    if (rate === "block") return;
+    if (rate === "warn") {
+      return sock.sendMessage(
+        jid,
+        { text: "⏳ You're sending commands too fast. Please slow down." },
+        { quoted: msg }
+      );
+    }
+  }
 
   if (cmd.ownerOnly && !isOwner) {
     return sock.sendMessage(

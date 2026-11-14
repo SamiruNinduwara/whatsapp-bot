@@ -1,6 +1,4 @@
 import "dotenv/config";
-import { handleGroupUpdate } from "./groupEvents.js";
-import { initReminders } from "./reminders.js";
 import makeWASocket, {
   useMultiFileAuthState,
   DisconnectReason,
@@ -8,8 +6,20 @@ import makeWASocket, {
 } from "@whiskeysockets/baileys";
 import pino from "pino";
 import { loadCommands, handleMessage } from "./handler.js";
+import { initReminders } from "./reminders.js";
+import { handleGroupUpdate } from "./groupEvents.js";
+import { throttleSends } from "./throttle.js";
 
 const phoneNumber = process.argv[2];
+
+process.on("unhandledRejection", (err) => {
+  console.error("Unhandled rejection:", err);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception:", err);
+  process.exit(1); // pm2 will restart the bot
+});
 
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState("auth_info");
@@ -21,11 +31,14 @@ async function startBot() {
     logger: pino({ level: "silent" }),
     browser: ["Ubuntu", "Chrome", "20.0.04"],
   });
-    initReminders(sock);
 
+  throttleSends(sock);
+  initReminders(sock);
+
+  // First time only: ask for a pairing code
   if (!sock.authState.creds.registered) {
     if (!phoneNumber) {
-      console.log("Enter the number: node index.js 94771234567");
+      console.log("Please give your number: node index.js 94771234567");
       process.exit(1);
     }
     setTimeout(async () => {
@@ -38,21 +51,30 @@ async function startBot() {
 
   sock.ev.on("connection.update", ({ connection, lastDisconnect }) => {
     if (connection === "open") console.log("✅ Bot online!");
+
     if (connection === "close") {
       const reason = lastDisconnect?.error?.output?.statusCode;
-      if (reason !== DisconnectReason.loggedOut) {
-        startBot();
+      if (reason === DisconnectReason.loggedOut) {
+        console.log("Logged out. Delete the auth_info folder and start again.");
       } else {
-        console.log("Logged out. auth_info folder eka delete karala aluthen patan gannna.");
+        console.log("Connection closed. Reconnecting in 3 seconds...");
+        setTimeout(startBot, 3000);
       }
     }
   });
 
   sock.ev.on("messages.upsert", async ({ messages, type }) => {
     if (type !== "notify") return;
-    for (const msg of messages) await handleMessage(sock, msg);
+    for (const msg of messages) {
+      try {
+        await handleMessage(sock, msg);
+      } catch (err) {
+        console.error("Message handler error:", err);
+      }
+    }
   });
-    sock.ev.on("group-participants.update", (ev) => handleGroupUpdate(sock, ev));
+
+  sock.ev.on("group-participants.update", (ev) => handleGroupUpdate(sock, ev));
 }
 
 await loadCommands();
