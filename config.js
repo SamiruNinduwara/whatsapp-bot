@@ -11,4 +11,6 @@ export const config = {
   maxMediaMinutes: 120, // longest YouTube / TikTok / Facebook video, in minutes
   userDailyDownloads: 10, // .dl downloads per user per day
   owners: ["94765579961", "249396520317017"], // owner IDs (digits only)
+  sendGapMinMs: 400, // minimum gap between messages sent back to back
+  sendGapMaxMs: 900, // maximum gap
 };

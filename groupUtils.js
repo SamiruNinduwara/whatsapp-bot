@@ -30,7 +30,11 @@ export function findParticipant(participants, jid) {
 const isAdminP = (p) => p?.admin === "admin" || p?.admin === "superadmin";
 
 export async function getGroupInfo(sock, jid, senderJid) {
-  const meta = await sock.groupMetadata(jid);
+  let meta = getCachedMeta(jid);
+  if (!meta) {
+    meta = await sock.groupMetadata(jid);
+    setCachedMeta(jid, meta);
+  }
   const sender = findParticipant(meta.participants, senderJid);
   const bot =
     (sock.user?.id && findParticipant(meta.participants, sock.user.id)) ||
@@ -74,4 +78,21 @@ export async function requireAdmin(ctx, needBotAdmin = false) {
 export function getTarget(msg) {
   const ctx = msg.message?.extendedTextMessage?.contextInfo;
   return ctx?.mentionedJid?.[0] || ctx?.participant || null;
+}
+
+// ---------- Group info cache (5 minutes) ----------
+const metaCache = new Map(); // group jid -> { time, meta }
+const META_TTL_MS = 5 * 60 * 1000;
+
+export function getCachedMeta(jid) {
+  const hit = metaCache.get(jid);
+  return hit && Date.now() - hit.time < META_TTL_MS ? hit.meta : undefined;
+}
+
+export function setCachedMeta(jid, meta) {
+  metaCache.set(jid, { time: Date.now(), meta });
+}
+
+export function clearCachedMeta(jid) {
+  metaCache.delete(jid);
 }

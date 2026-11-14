@@ -1,7 +1,9 @@
-// Per-user rate limiting and send throttling (looks less like a spam bot)
+import { config } from "./config.js";
+
+// Per-user rate limiting and send spacing (looks less like a spam bot)
 
 const WINDOW_MS = 60_000;
-const MAX_COMMANDS = 20; // commands per user per minute
+const MAX_COMMANDS = 10; // commands per user per minute
 const hits = new Map();
 
 // Returns "ok", "warn" (first time over the limit) or "block" (ignore silently)
@@ -34,18 +36,25 @@ setInterval(() => {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Wraps sock.sendMessage so messages go out one by one with a small delay
+// Gap between two messages that go out back to back (milliseconds).
+// You can change them in config.js with sendGapMinMs / sendGapMaxMs.
+const MIN_GAP_MS = Number(config.sendGapMinMs ?? 400);
+const MAX_GAP_MS = Math.max(Number(config.sendGapMaxMs ?? 900), MIN_GAP_MS);
+
+// A single reply is sent immediately. Only messages sent right after each other are spaced out.
+// Only the START of each send is spaced, so a slow upload never blocks other replies.
 export function throttleSends(sock) {
   const original = sock.sendMessage.bind(sock);
-  let last = Promise.resolve();
+  let nextSlot = 0;
 
-  sock.sendMessage = (jid, content, options) => {
-    const run = last.then(async () => {
-      const result = await original(jid, content, options);
-      await sleep(700 + Math.random() * 800); // 0.7 - 1.5 seconds
-      return result;
-    });
-    last = run.catch(() => {});
-    return run;
+  sock.sendMessage = async (jid, content, options) => {
+    const now = Date.now();
+    const gap = MIN_GAP_MS + Math.random() * (MAX_GAP_MS - MIN_GAP_MS);
+    const slot = Math.max(now, nextSlot);
+    nextSlot = slot + gap;
+
+    const wait = slot - now;
+    if (wait > 0) await sleep(wait);
+    return original(jid, content, options);
   };
 }
