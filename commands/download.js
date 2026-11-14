@@ -159,7 +159,7 @@ const mp4 = {
         "-f", format,
         "--merge-output-format", "mp4",
         "--max-filesize", `${MAX_MB}M`,
-        "--match-filter", `duration<=?${MAX_MINUTES * 60}`,
+        "--match-filter", `duration<=?${MAX_MINUTES * 120}`,
         "-o", path.join(dir, "video.%(ext)s"),
         url.toString(),
       ]);

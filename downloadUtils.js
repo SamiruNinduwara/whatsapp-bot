@@ -11,7 +11,7 @@ const exec = promisify(execFile);
 
 // ---------- Limits (change them in config.js) ----------
 // WhatsApp cannot send a file bigger than 2 GB, so that is the highest limit allowed here.
-const WHATSAPP_MAX_MB = 2048;
+const WHATSAPP_MAX_MB = 1024;
 
 function limitMB(value, fallback) {
   const n = Number(value);
