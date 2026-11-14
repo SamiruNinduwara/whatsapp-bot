@@ -5,6 +5,7 @@ import makeWASocket, {
   fetchLatestBaileysVersion,
 } from "@whiskeysockets/baileys";
 import pino from "pino";
+import { config } from "./config.js";
 import { loadCommands, handleMessage } from "./handler.js";
 import { initReminders } from "./reminders.js";
 import { handleGroupUpdate } from "./groupEvents.js";
@@ -52,7 +53,7 @@ async function startBot() {
   sock.ev.on("connection.update", ({ connection, lastDisconnect }) => {
     if (connection === "open") console.log("✅ Bot online!");
 
-        if (connection === "close") {
+    if (connection === "close") {
       const reason = lastDisconnect?.error?.output?.statusCode;
       if (reason === DisconnectReason.loggedOut) {
         console.log("Logged out. Delete the auth_info folder and start again.");
@@ -62,7 +63,6 @@ async function startBot() {
         console.log(`Connection closed (code ${reason}). Reconnecting in 3 seconds...`);
         setTimeout(startBot, 3000);
       }
-    }
     }
   });
 
@@ -79,7 +79,7 @@ async function startBot() {
 
   sock.ev.on("group-participants.update", (ev) => handleGroupUpdate(sock, ev));
 }
-import { config } from "./config.js";
+
 console.log(`${config.botName} V ${config.version} by ${config.developer}`);
 await loadCommands();
 startBot();
