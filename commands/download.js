@@ -1,5 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
+import { config } from "../config.js";
 import {
   MAX_MB,
   MAX_BYTES,
@@ -25,6 +26,14 @@ import {
 } from "../downloadUtils.js";
 
 const BIG_MEDIA_BYTES = 64 * 1024 * 1024; // above this, send as a document
+const FAST_AUDIO = config.fastAudio !== false; // send M4A without converting to MP3
+
+// Errors that will not go away by trying another format
+const isFinalError = (err) =>
+  err.code === "ENOENT" ||
+  /Video unavailable|Private video|Sign in to confirm|not a bot|not available/i.test(
+    `${err.message} ${err.stderr || ""}`
+  );
 
 // Sends a file from disk. Small audio/video goes as normal media; big files go as documents
 // (streamed from disk, so a 2 GB file does not fill the phone's RAM).
@@ -45,7 +54,7 @@ async function sendFromDisk(sock, jid, msg, filePath, { type, mimetype, fileName
   );
 }
 
-// Shared flow: cooldown -> queue -> temp folder -> job -> cleanup
+// Shared flow: cooldown -> queue -> temp folder -> job -> cleanup (and logs how long it took)
 async function runDownload(ctx, job) {
   const { sock, msg, jid, sender } = ctx;
   const reply = (text) => sock.sendMessage(jid, { text }, { quoted: msg });
@@ -58,9 +67,11 @@ async function runDownload(ctx, job) {
   await reply(ahead > 0 ? `⏳ Queued. ${ahead} download(s) ahead of you.` : "⏳ Downloading...");
 
   await enqueue(async () => {
+    const started = Date.now();
     const dir = await makeTmpDir();
     try {
       await job(dir);
+      console.log(`[download] finished in ${((Date.now() - started) / 1000).toFixed(1)}s`);
     } catch (err) {
       console.error("Download error:", err.message);
       await reply(explainError(err));
@@ -74,7 +85,7 @@ async function runDownload(ctx, job) {
 const mp3 = {
   name: "mp3",
   aliases: ["song"],
-  description: "Download a YouTube video as MP3 (.mp3 link or song name)",
+  description: "Download a YouTube video as audio (.mp3 link or song name)",
   ownerOnly: false,
   async run(ctx) {
     const { sock, msg, jid, args } = ctx;
@@ -94,13 +105,37 @@ const mp3 = {
       target = `ytsearch1:${query}`; // search and take the first result
     }
 
+    const limits = [
+      "--max-filesize", `${MAX_MB}M`,
+      "--match-filter", `duration<=?${MAX_MINUTES * 60}`,
+    ];
+
     await runDownload(ctx, async (dir) => {
+      // 1) Fast path: download the M4A audio as it is (no converting)
+      if (FAST_AUDIO) {
+        try {
+          await ytDlp(["-f", "ba[ext=m4a]", ...limits, "-o", path.join(dir, "audio.%(ext)s"), target]);
+
+          const m4a = (await fs.readdir(dir)).find((f) => f.endsWith(".m4a"));
+          if (!m4a) throw new Error("NO_OUTPUT"); // filtered out: too long or too big
+
+          return await sendFromDisk(sock, jid, msg, path.join(dir, m4a), {
+            type: "audio",
+            mimetype: "audio/mp4",
+            fileName: "audio.m4a",
+          });
+        } catch (err) {
+          if (err.message === "NO_OUTPUT" || isFinalError(err)) throw err;
+          console.error("Fast audio failed, converting to MP3 instead:", err.message);
+        }
+      }
+
+      // 2) Slower path: convert to MP3 (works for every video)
       await ytDlp([
         "-x",
         "--audio-format", "mp3",
         "--audio-quality", "5",
-        "--max-filesize", `${MAX_MB}M`,
-        "--match-filter", `duration<=?${MAX_MINUTES * 60}`,
+        ...limits,
         "-o", path.join(dir, "audio.%(ext)s"),
         target,
       ]);
@@ -149,8 +184,10 @@ const mp4 = {
       return reply("Quality must be one of: 240, 360, 480, 720");
     }
 
-    // Prefer H.264/AAC (plays everywhere on WhatsApp), then fall back to anything that fits
+    // 1st choice: a ready-made H.264 mp4 (no merging needed, fastest).
+    // 2nd choice: separate video + audio merged together. Then anything that fits.
     const format =
+      `b[height<=${quality}][ext=mp4][vcodec^=avc1]/` +
       `bv*[height<=${quality}][vcodec^=avc1]+ba[acodec^=mp4a]/` +
       `b[height<=${quality}][ext=mp4]/b[height<=${quality}]/b`;
 
@@ -159,7 +196,7 @@ const mp4 = {
         "-f", format,
         "--merge-output-format", "mp4",
         "--max-filesize", `${MAX_MB}M`,
-        "--match-filter", `duration<=?${MAX_MINUTES * 120}`,
+        "--match-filter", `duration<=?${MAX_MINUTES * 60}`,
         "-o", path.join(dir, "video.%(ext)s"),
         url.toString(),
       ]);

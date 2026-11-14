@@ -1,6 +1,9 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
 import fs from "fs/promises";
+import { createWriteStream } from "fs";
+import { pipeline } from "stream/promises";
+import { Readable, Transform } from "stream";
 import os from "os";
 import path from "path";
 import dns from "dns/promises";
@@ -11,7 +14,7 @@ const exec = promisify(execFile);
 
 // ---------- Limits (change them in config.js) ----------
 // WhatsApp cannot send a file bigger than 2 GB, so that is the highest limit allowed here.
-const WHATSAPP_MAX_MB = 1024;
+const WHATSAPP_MAX_MB = 2048;
 
 function limitMB(value, fallback) {
   const n = Number(value);
@@ -22,12 +25,13 @@ export const MAX_MB = limitMB(config.maxDownloadMB, 50); // owner, and .mp3 / .m
 export const NON_OWNER_MB = limitMB(config.userMaxDownloadMB, MAX_MB); // .dl for everyone else
 export const MAX_BYTES = MAX_MB * 1024 * 1024;
 export const MAX_MINUTES =
-  Number(config.maxMediaMinutes) > 0 ? Number(config.maxMediaMinutes) : 120;
+  Number(config.maxMediaMinutes) > 0 ? Number(config.maxMediaMinutes) : 10;
 export const DAILY_LIMIT =
-  Number(config.userDailyDownloads) > 0 ? Number(config.userDailyDownloads) : 10;
+  Number(config.userDailyDownloads) > 0 ? Number(config.userDailyDownloads) : 5;
 
 const COOLDOWN_MS = 20000; // 20 seconds per user
 const LONG_TIMEOUT_MS = 2 * 60 * 60 * 1000; // up to 2 hours for very large files
+const PARALLEL = Math.min(Math.max(Number(config.parallelDownloads) || 1, 1), 3);
 
 export const formatMB = (mb) =>
   mb >= 1024 ? `${+(mb / 1024).toFixed(1)} GB` : `${mb} MB`;
@@ -44,19 +48,33 @@ export function markUsed(user) {
   lastUse.set(user, Date.now());
 }
 
-// ---------- Queue (one download at a time) ----------
-let chain = Promise.resolve();
-let pending = 0;
+// ---------- Queue (PARALLEL downloads at a time, the rest wait) ----------
+let active = 0;
+let pending = 0; // running + waiting
+const waiting = [];
 
-export const queueLength = () => pending;
+// How many requests a new download would have to wait for (0 = starts right away)
+export const queueLength = () => (active >= PARALLEL ? pending : 0);
 
 export function enqueue(task) {
   pending++;
-  const run = chain.then(task);
-  chain = run.catch(() => {}).finally(() => {
-    pending--;
+  return new Promise((resolve, reject) => {
+    const start = async () => {
+      active++;
+      try {
+        resolve(await task());
+      } catch (err) {
+        reject(err);
+      } finally {
+        active--;
+        pending--;
+        const next = waiting.shift();
+        if (next) next();
+      }
+    };
+    if (active < PARALLEL) start();
+    else waiting.push(start);
   });
-  return run;
 }
 
 // ---------- URL helpers ----------
@@ -143,29 +161,34 @@ export async function downloadFile(startUrl, destPath, maxBytes = MAX_BYTES) {
       url = new URL(location, u).toString();
       continue;
     }
-    if (!res.ok) throw new Error(`HTTP_${res.status}`);
+    if (!res.ok || !res.body) throw new Error(`HTTP_${res.status}`);
 
     const declared = Number(res.headers.get("content-length") || 0);
     if (declared > maxBytes) throw new Error("TOO_BIG");
     await assertFreeSpace(declared || 200 * 1024 * 1024);
 
+    // Counts the bytes and stops the download if it gets too big
     let size = 0;
     let checkedBig = false;
-    const file = await fs.open(destPath, "w");
-    try {
-      for await (const chunk of res.body) {
+    const limiter = new Transform({
+      transform(chunk, _encoding, callback) {
         size += chunk.length;
-        if (size > maxBytes) throw new Error("TOO_BIG");
+        if (size > maxBytes) return callback(new Error("TOO_BIG"));
         // Size was not announced: check the storage once the file gets big
         if (!declared && !checkedBig && size > 512 * 1024 * 1024) {
           checkedBig = true;
-          await assertFreeSpace(size);
+          return assertFreeSpace(size).then(() => callback(null, chunk), callback);
         }
-        await file.write(chunk);
-      }
-    } finally {
-      await file.close();
-    }
+        callback(null, chunk);
+      },
+    });
+
+    // pipeline + a 1 MB write buffer is much faster than writing every small chunk separately
+    await pipeline(
+      Readable.fromWeb(res.body),
+      limiter,
+      createWriteStream(destPath, { highWaterMark: 1024 * 1024 })
+    );
 
     return {
       size,
@@ -178,10 +201,40 @@ export async function downloadFile(startUrl, destPath, maxBytes = MAX_BYTES) {
 }
 
 // ---------- yt-dlp ----------
-export function ytDlp(args) {
+let aria2Ready; // undefined = not checked yet
+
+async function hasAria2() {
+  if (aria2Ready === undefined) {
+    try {
+      await exec("aria2c", ["--version"], { timeout: 5000 });
+      aria2Ready = true;
+    } catch {
+      aria2Ready = false;
+    }
+  }
+  return aria2Ready;
+}
+
+export async function ytDlp(args) {
+  // aria2c (if enabled and installed) opens several connections; otherwise download 4 pieces at once
+  const speed =
+    config.useAria2 && (await hasAria2())
+      ? ["--downloader", "aria2c", "--downloader-args", "aria2c:-x 8 -s 8 -k 2M"]
+      : ["-N", "4"];
+
   return exec(
     "yt-dlp",
-    ["--no-playlist", "--no-warnings", "--js-runtimes", "node", ...args],
+    [
+      "--no-playlist",
+      "--no-warnings",
+      "--js-runtimes", "node",
+      "--no-part",
+      "--retries", "3",
+      "--fragment-retries", "3",
+      "--socket-timeout", "20",
+      ...speed,
+      ...args,
+    ],
     { timeout: LONG_TIMEOUT_MS, maxBuffer: 10 * 1024 * 1024 }
   );
 }

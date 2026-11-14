@@ -10,6 +10,9 @@ export const config = {
   userMaxDownloadMB: 1024, // biggest file for non-owners using .dl
   maxMediaMinutes: 120, // longest YouTube / TikTok / Facebook video, in minutes
   userDailyDownloads: 10, // .dl downloads per user per day
+  fastAudio: true, // .mp3 sends M4A without converting (much faster). Set false for real MP3 files
+  useAria2: false, // set true after installing aria2 in Termux (pkg install aria2) for faster downloads
+  parallelDownloads: 1, // downloads running at the same time (1 to 3). 2 is OK on a strong phone
   owners: ["94765579961", "249396520317017"], // owner IDs (digits only)
   sendGapMinMs: 400, // minimum gap between messages sent back to back
   sendGapMaxMs: 900, // maximum gap
