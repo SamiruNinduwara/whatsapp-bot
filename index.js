@@ -4,6 +4,7 @@ import makeWASocket, {
   fetchLatestBaileysVersion,
 } from "@whiskeysockets/baileys";
 import pino from "pino";
+import { loadCommands, handleMessage } from "./handler.js";
 
 const phoneNumber = process.argv[2];
 
@@ -18,10 +19,9 @@ async function startBot() {
     browser: ["Ubuntu", "Chrome", "20.0.04"],
   });
 
-  // First time only: ask for a pairing code
   if (!sock.authState.creds.registered) {
     if (!phoneNumber) {
-      console.log("Number eka danna: node index.js 94771234567");
+      console.log("Enter the number: node index.js 94771234567");
       process.exit(1);
     }
     setTimeout(async () => {
@@ -37,25 +37,18 @@ async function startBot() {
     if (connection === "close") {
       const reason = lastDisconnect?.error?.output?.statusCode;
       if (reason !== DisconnectReason.loggedOut) {
-        startBot(); // reconnect
+        startBot();
       } else {
         console.log("Logged out. auth_info folder eka delete karala aluthen patan gannna.");
       }
     }
   });
 
-  // Simple test command: .ping
-  sock.ev.on("messages.upsert", async ({ messages }) => {
-    const msg = messages[0];
-    if (!msg.message || msg.key.fromMe) return;
-    const text =
-      msg.message.conversation ||
-      msg.message.extendedTextMessage?.text ||
-      "";
-    if (text.toLowerCase() === ".ping") {
-      await sock.sendMessage(msg.key.remoteJid, { text: "pong 🏓" });
-    }
+  sock.ev.on("messages.upsert", async ({ messages, type }) => {
+    if (type !== "notify") return;
+    for (const msg of messages) await handleMessage(sock, msg);
   });
 }
 
+await loadCommands();
 startBot();
