@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { handleGroupUpdate } from "./groupEvents.js";
 import { initReminders } from "./reminders.js";
 import makeWASocket, {
   useMultiFileAuthState,
@@ -51,6 +52,7 @@ async function startBot() {
     if (type !== "notify") return;
     for (const msg of messages) await handleMessage(sock, msg);
   });
+    sock.ev.on("group-participants.update", (ev) => handleGroupUpdate(sock, ev));
 }
 
 await loadCommands();
