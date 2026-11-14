@@ -24,6 +24,7 @@ import {
   removeDir,
   explainError,
 } from "../downloadUtils.js";
+import { cacheGet, cacheAdd } from "../downloadCache.js";
 
 const BIG_MEDIA_BYTES = 64 * 1024 * 1024; // above this, send as a document
 const FAST_AUDIO = config.fastAudio !== false; // send M4A without converting to MP3
@@ -34,6 +35,27 @@ const isFinalError = (err) =>
   /Video unavailable|Private video|Sign in to confirm|not a bot|not available/i.test(
     `${err.message} ${err.stderr || ""}`
   );
+
+// ---------- Cache keys: the same video must always give the same key ----------
+function youtubeId(url) {
+  let id = null;
+  if (url.hostname.toLowerCase() === "youtu.be") {
+    id = url.pathname.split("/")[1];
+  } else if (url.searchParams.get("v")) {
+    id = url.searchParams.get("v");
+  } else {
+    const m = url.pathname.match(/^\/(?:shorts|embed|live)\/([\w-]{6,20})/);
+    if (m) id = m[1];
+  }
+  return id && /^[\w-]{6,20}$/.test(id) ? id : null;
+}
+
+// A link without tracking parameters (only the "v" parameter is kept)
+function cleanUrl(url) {
+  const host = url.hostname.toLowerCase().replace(/^(www|m)\./, "");
+  const v = url.searchParams.get("v");
+  return `${host}${url.pathname.replace(/\/$/, "")}${v ? `?v=${v}` : ""}`;
+}
 
 // Sends a file from disk. Small audio/video goes as normal media; big files go as documents
 // (streamed from disk, so a 2 GB file does not fill the phone's RAM).
@@ -54,14 +76,37 @@ async function sendFromDisk(sock, jid, msg, filePath, { type, mimetype, fileName
   );
 }
 
-// Shared flow: cooldown -> queue -> temp folder -> job -> cleanup (and logs how long it took)
-async function runDownload(ctx, job) {
+// Sends the file, then saves a copy in the cache for the next person who asks for it
+async function deliver(ctx, filePath, meta, cacheKey) {
+  const { sock, jid, msg } = ctx;
+  await sendFromDisk(sock, jid, msg, filePath, meta);
+  if (cacheKey) await cacheAdd(cacheKey, filePath, meta);
+}
+
+// Shared flow: cooldown -> cache -> queue -> temp folder -> job -> cleanup
+async function runDownload(ctx, job, cacheKey = null) {
   const { sock, msg, jid, sender } = ctx;
   const reply = (text) => sock.sendMessage(jid, { text }, { quoted: msg });
 
   const wait = cooldownLeft(sender);
   if (wait) return reply(`⏳ Please wait ${wait}s before your next download.`);
   markUsed(sender);
+
+  // Already downloaded before? Send it straight away (no queue, no download)
+  if (cacheKey) {
+    const hit = await cacheGet(cacheKey);
+    if (hit) {
+      await reply("⚡ Found it in my cache. Sending...");
+      try {
+        await sendFromDisk(sock, jid, msg, hit.path, hit.meta);
+        console.log(`[download] sent from cache (${cacheKey})`);
+      } catch (err) {
+        console.error("Cache send failed:", err.message);
+        await reply(explainError(err));
+      }
+      return;
+    }
+  }
 
   const ahead = queueLength();
   await reply(ahead > 0 ? `⏳ Queued. ${ahead} download(s) ahead of you.` : "⏳ Downloading...");
@@ -94,15 +139,19 @@ const mp3 = {
     const query = args.join(" ").trim().slice(0, 100);
     if (!query) return reply("Use: .mp3 <YouTube link or song name>");
 
+    const mode = FAST_AUDIO ? "m4a" : "mp3";
     let target;
+    let cacheKey;
     const url = parseUrl(query);
     if (url) {
       if (!hostMatches(url, YOUTUBE_HOSTS)) {
         return reply("❌ Only YouTube links are supported for .mp3");
       }
       target = url.toString();
+      cacheKey = `mp3:${mode}:${youtubeId(url) || cleanUrl(url)}`;
     } else {
       target = `ytsearch1:${query}`; // search and take the first result
+      cacheKey = `mp3:${mode}:q:${query.toLowerCase().replace(/\s+/g, " ")}`;
     }
 
     const limits = [
@@ -110,45 +159,50 @@ const mp3 = {
       "--match-filter", `duration<=?${MAX_MINUTES * 60}`,
     ];
 
-    await runDownload(ctx, async (dir) => {
-      // 1) Fast path: download the M4A audio as it is (no converting)
-      if (FAST_AUDIO) {
-        try {
-          await ytDlp(["-f", "ba[ext=m4a]", ...limits, "-o", path.join(dir, "audio.%(ext)s"), target]);
+    await runDownload(
+      ctx,
+      async (dir) => {
+        let file = null;
+        let meta = null;
 
-          const m4a = (await fs.readdir(dir)).find((f) => f.endsWith(".m4a"));
-          if (!m4a) throw new Error("NO_OUTPUT"); // filtered out: too long or too big
+        // 1) Fast path: download the M4A audio as it is (no converting)
+        if (FAST_AUDIO) {
+          try {
+            await ytDlp(["-f", "ba[ext=m4a]", ...limits, "-o", path.join(dir, "audio.%(ext)s"), target]);
 
-          return await sendFromDisk(sock, jid, msg, path.join(dir, m4a), {
-            type: "audio",
-            mimetype: "audio/mp4",
-            fileName: "audio.m4a",
-          });
-        } catch (err) {
-          if (err.message === "NO_OUTPUT" || isFinalError(err)) throw err;
-          console.error("Fast audio failed, converting to MP3 instead:", err.message);
+            const m4a = (await fs.readdir(dir)).find((f) => f.endsWith(".m4a"));
+            if (!m4a) throw new Error("NO_OUTPUT"); // filtered out: too long or too big
+
+            file = path.join(dir, m4a);
+            meta = { type: "audio", mimetype: "audio/mp4", fileName: "audio.m4a" };
+          } catch (err) {
+            if (err.message === "NO_OUTPUT" || isFinalError(err)) throw err;
+            console.error("Fast audio failed, converting to MP3 instead:", err.message);
+          }
         }
-      }
 
-      // 2) Slower path: convert to MP3 (works for every video)
-      await ytDlp([
-        "-x",
-        "--audio-format", "mp3",
-        "--audio-quality", "5",
-        ...limits,
-        "-o", path.join(dir, "audio.%(ext)s"),
-        target,
-      ]);
+        // 2) Slower path: convert to MP3 (works for every video)
+        if (!file) {
+          await ytDlp([
+            "-x",
+            "--audio-format", "mp3",
+            "--audio-quality", "5",
+            ...limits,
+            "-o", path.join(dir, "audio.%(ext)s"),
+            target,
+          ]);
 
-      const file = (await fs.readdir(dir)).find((f) => f.endsWith(".mp3"));
-      if (!file) throw new Error("NO_OUTPUT");
+          const mp3File = (await fs.readdir(dir)).find((f) => f.endsWith(".mp3"));
+          if (!mp3File) throw new Error("NO_OUTPUT");
 
-      await sendFromDisk(sock, jid, msg, path.join(dir, file), {
-        type: "audio",
-        mimetype: "audio/mpeg",
-        fileName: "audio.mp3",
-      });
-    });
+          file = path.join(dir, mp3File);
+          meta = { type: "audio", mimetype: "audio/mpeg", fileName: "audio.mp3" };
+        }
+
+        await deliver(ctx, file, meta, cacheKey);
+      },
+      cacheKey
+    );
   },
 };
 
@@ -184,6 +238,9 @@ const mp4 = {
       return reply("Quality must be one of: 240, 360, 480, 720");
     }
 
+    const id = platform.name === "YouTube" ? youtubeId(url) : null;
+    const cacheKey = `mp4:${platform.name}:${id || cleanUrl(url)}:${quality}`;
+
     // 1st choice: a ready-made H.264 mp4 (no merging needed, fastest).
     // 2nd choice: separate video + audio merged together. Then anything that fits.
     const format =
@@ -191,30 +248,39 @@ const mp4 = {
       `bv*[height<=${quality}][vcodec^=avc1]+ba[acodec^=mp4a]/` +
       `b[height<=${quality}][ext=mp4]/b[height<=${quality}]/b`;
 
-    await runDownload(ctx, async (dir) => {
-      await ytDlp([
-        "-f", format,
-        "--merge-output-format", "mp4",
-        "--max-filesize", `${MAX_MB}M`,
-        "--match-filter", `duration<=?${MAX_MINUTES * 60}`,
-        "-o", path.join(dir, "video.%(ext)s"),
-        url.toString(),
-      ]);
+    await runDownload(
+      ctx,
+      async (dir) => {
+        await ytDlp([
+          "-f", format,
+          "--merge-output-format", "mp4",
+          "--max-filesize", `${MAX_MB}M`,
+          "--match-filter", `duration<=?${MAX_MINUTES * 60}`,
+          "-o", path.join(dir, "video.%(ext)s"),
+          url.toString(),
+        ]);
 
-      const file = (await fs.readdir(dir)).find((f) => f.endsWith(".mp4"));
-      if (!file) throw new Error("NO_OUTPUT");
+        const file = (await fs.readdir(dir)).find((f) => f.endsWith(".mp4"));
+        if (!file) throw new Error("NO_OUTPUT");
 
-      const filePath = path.join(dir, file);
-      const { size } = await fs.stat(filePath);
-      if (size > MAX_BYTES) throw new Error("TOO_BIG");
+        const filePath = path.join(dir, file);
+        const { size } = await fs.stat(filePath);
+        if (size > MAX_BYTES) throw new Error("TOO_BIG");
 
-      await sendFromDisk(sock, jid, msg, filePath, {
-        type: "video",
-        mimetype: "video/mp4",
-        fileName: "video.mp4",
-        caption: `✅ ${platform.name} video (up to ${quality}p)`,
-      });
-    });
+        await deliver(
+          ctx,
+          filePath,
+          {
+            type: "video",
+            mimetype: "video/mp4",
+            fileName: "video.mp4",
+            caption: `✅ ${platform.name} video (up to ${quality}p)`,
+          },
+          cacheKey
+        );
+      },
+      cacheKey
+    );
   },
 };
 
@@ -233,28 +299,39 @@ const tiktok = {
       return reply("Use: .tiktok <TikTok link>");
     }
 
-    await runDownload(ctx, async (dir) => {
-      await ytDlp([
-        "-f", "best[ext=mp4]/best",
-        "--max-filesize", `${MAX_MB}M`,
-        "-o", path.join(dir, "video.%(ext)s"),
-        url.toString(),
-      ]);
+    const cacheKey = `tiktok:${cleanUrl(url)}`;
 
-      const file = (await fs.readdir(dir)).find((f) => f.startsWith("video."));
-      if (!file) throw new Error("NO_OUTPUT");
+    await runDownload(
+      ctx,
+      async (dir) => {
+        await ytDlp([
+          "-f", "best[ext=mp4]/best",
+          "--max-filesize", `${MAX_MB}M`,
+          "-o", path.join(dir, "video.%(ext)s"),
+          url.toString(),
+        ]);
 
-      await sendFromDisk(sock, jid, msg, path.join(dir, file), {
-        type: "video",
-        mimetype: "video/mp4",
-        fileName: "video.mp4",
-        caption: "✅ Here is your video",
-      });
-    });
+        const file = (await fs.readdir(dir)).find((f) => f.startsWith("video."));
+        if (!file) throw new Error("NO_OUTPUT");
+
+        await deliver(
+          ctx,
+          path.join(dir, file),
+          {
+            type: "video",
+            mimetype: "video/mp4",
+            fileName: "video.mp4",
+            caption: "✅ Here is your video",
+          },
+          cacheKey
+        );
+      },
+      cacheKey
+    );
   },
 };
 
-// ---------- .dl (direct link) ----------
+// ---------- .dl (direct link, never cached) ----------
 const dl = {
   name: "dl",
   aliases: ["download"],

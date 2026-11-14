@@ -13,6 +13,10 @@ export const config = {
   fastAudio: true, // .mp3 sends M4A without converting (much faster). Set false for real MP3 files
   useAria2: false, // set true after installing aria2 in Termux (pkg install aria2) for faster downloads
   parallelDownloads: 1, // downloads running at the same time (1 to 3). 2 is OK on a strong phone
+  cacheDownloads: true, // keep .mp3 / .mp4 / .tiktok downloads so repeated requests are instant
+  cacheMaxMB: 500, // total size of the cache
+  cacheMaxFileMB: 100, // biggest single file that is cached
+  cacheDays: 7, // how long a file is kept
   owners: ["94765579961", "249396520317017"], // owner IDs (digits only)
   sendGapMinMs: 400, // minimum gap between messages sent back to back
   sendGapMaxMs: 900, // maximum gap
