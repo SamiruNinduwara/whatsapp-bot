@@ -1,4 +1,6 @@
 import "dotenv/config";
+import dns from "dns";
+dns.setDefaultResultOrder("ipv4first"); // prefer IPv4 (fixes many Termux timeouts)
 import makeWASocket, {
   useMultiFileAuthState,
   DisconnectReason,
@@ -10,6 +12,8 @@ import { loadCommands, handleMessage } from "./handler.js";
 import { initReminders } from "./reminders.js";
 import { handleGroupUpdate } from "./groupEvents.js";
 import { throttleSends } from "./throttle.js";
+import { setGlobalDispatcher, Agent } from "undici";
+setGlobalDispatcher(new Agent({ connect: { timeout: 30_000 } }));
 
 const phoneNumber = process.argv[2];
 
