@@ -38,7 +38,7 @@ export async function handleMessage(sock, msg) {
   const isGroup = jid.endsWith("@g.us");
   const senderJid = msg.key.participant || jid;
   const sender = senderJid.split("@")[0].split(":")[0];
-  const isOwner = config.owners.includes(sender);
+  const isOwner = (config.owners || []).includes(sender);
 
   // Anti-link (also checks messages that are not commands)
   if (

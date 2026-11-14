@@ -52,14 +52,17 @@ async function startBot() {
   sock.ev.on("connection.update", ({ connection, lastDisconnect }) => {
     if (connection === "open") console.log("✅ Bot online!");
 
-    if (connection === "close") {
+        if (connection === "close") {
       const reason = lastDisconnect?.error?.output?.statusCode;
       if (reason === DisconnectReason.loggedOut) {
         console.log("Logged out. Delete the auth_info folder and start again.");
+      } else if (reason === DisconnectReason.connectionReplaced) {
+        console.log("Connection replaced: another copy of the bot is using this session. Stop the other copy.");
       } else {
-        console.log("Connection closed. Reconnecting in 3 seconds...");
+        console.log(`Connection closed (code ${reason}). Reconnecting in 3 seconds...`);
         setTimeout(startBot, 3000);
       }
+    }
     }
   });
 

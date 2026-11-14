@@ -4,5 +4,6 @@ export const config = {
   version: "1.0",
   developer: "Samiru Ninduwara",
   ownerNumber: "94765579961", // your main number, shown by .owner
-  github: "https://github.com/SamiruNinduwara", // optional, delete this line to hide it
+  github: "https://github.com/SamiruNinduwara", // optional
+  owners: ["94765579961", "249396520317017"], // owner IDs (digits only)
 };
