@@ -17,7 +17,7 @@ const TABS = [
     key: "general",
     emoji: "⚙️",
     title: "General",
-    commands: ["menu", "ping", "owner", "status", "say"],
+    commands: ["menu", "cmd", "ping", "owner", "status", "say"],
   },
 ];
 
@@ -41,7 +41,7 @@ function formatUptime(seconds) {
 }
 
 // Builds the tab list from the loaded commands
-function buildTabs(commands) {
+export function buildTabs(commands) {
   const unique = [...new Set(commands.values())];
   const used = new Set();
 
@@ -66,13 +66,13 @@ function renderTabList(tabs) {
     text += `┃      ➜ ${config.prefix}menu ${tab.key}\n`;
   });
   text += `┃ ${num(tabs.length)} 📜 *All commands*\n`;
-  text += `┃      ➜ ${config.prefix}menu all\n┃\n`;
+  text += `┃      ➜ ${config.prefix}cmd\n┃\n`;
   text += `╰━━━━━━━━━━━━━━━━╯\n\n`;
   text += `💡 _Tip: you can use a number too, e.g._ *${config.prefix}menu 2*`;
   return text;
 }
 
-function renderTab(tab) {
+export function renderTab(tab) {
   let text = `╭━━━❮ ${tab.emoji} *${tab.title.toUpperCase()}* ❯━━━╮\n┃\n`;
   for (const cmd of tab.cmds) {
     text += `┃ ✦ *${config.prefix}${cmd.name}*${cmd.ownerOnly ? " 🔒" : ""}\n`;
@@ -103,7 +103,7 @@ function findTab(tabs, arg) {
 export default {
   name: "menu",
   aliases: ["help"],
-  description: "Show the command menu (.menu ai, .menu 2, .menu all)",
+  description: "Show the command menu (.menu ai, .menu 2)",
   ownerOnly: false,
   async run({ sock, msg, jid, args, commands }) {
     const reply = (text) => sock.sendMessage(jid, { text }, { quoted: msg });
@@ -128,7 +128,7 @@ export default {
       return sendWithLogo(sock, jid, caption, { quoted: msg });
     }
 
-    // 📜 All commands
+    // 📜 All commands (same as .cmd)
     if (arg === "all" || arg === String(tabs.length + 1)) {
       const text = tabs.map(renderTab).join("\n\n") + `\n\n🔒 = owner only\n🏠 ${config.prefix}menu`;
       return reply(text);

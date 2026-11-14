@@ -2,6 +2,9 @@ import fs from "fs/promises";
 import path from "path";
 import {
   MAX_MB,
+  MAX_BYTES,
+  NON_OWNER_MB,
+  DAILY_LIMIT,
   YOUTUBE_HOSTS,
   TIKTOK_HOSTS,
   parseUrl,
@@ -12,6 +15,8 @@ import {
   queueLength,
   ytDlp,
   downloadFile,
+  dailyLeft,
+  useDaily,
   makeTmpDir,
   removeDir,
   explainError,
@@ -63,7 +68,7 @@ const mp3 = {
       }
       target = url.toString();
     } else {
-      target = `ytsearch1:${query}`; // search and take the first result
+      target = `ytsearch1:${query}`;
     }
 
     await runDownload(ctx, async (dir) => {
@@ -72,7 +77,7 @@ const mp3 = {
         "--audio-format", "mp3",
         "--audio-quality", "5",
         "--max-filesize", `${MAX_MB}M`,
-        "--match-filter", "duration<=600", // 10 minutes max
+        "--match-filter", "duration<=600",
         "-o", path.join(dir, "audio.%(ext)s"),
         target,
       ]);
@@ -126,28 +131,34 @@ const tiktok = {
 const dl = {
   name: "dl",
   aliases: ["download"],
-  description: "Owner only: download a direct file link (.dl link)",
-  ownerOnly: true, // change to false only if you really want everyone to use it
+  description: "Download a direct file link (.dl link)",
+  ownerOnly: false,
   async run(ctx) {
-    const { sock, msg, jid, args } = ctx;
+    const { sock, msg, jid, args, sender, isOwner } = ctx;
     const reply = (text) => sock.sendMessage(jid, { text }, { quoted: msg });
 
     const url = parseUrl(args[0] || "");
     if (!url) return reply("Use: .dl <direct file link>");
 
-    await runDownload(ctx, async (dir) => {
-      const dest = path.join(dir, "file");
-      const info = await downloadFile(url.toString(), dest);
+    if (!isOwner && dailyLeft(sender) <= 0) {
+      return reply(
+        `⛔ Daily limit reached (${DAILY_LIMIT} downloads per day). Try again tomorrow.`
+      );
+    }
 
-      // Build a safe file name from the final URL
+    await runDownload(ctx, async (dir) => {
+      if (!isOwner) useDaily(sender);
+      const limit = isOwner ? MAX_BYTES : NON_OWNER_MB * 1024 * 1024;
+
+      const dest = path.join(dir, "file");
+      const info = await downloadFile(url.toString(), dest, limit);
+
       let name = "file";
       try {
         name = decodeURIComponent(path.basename(new URL(info.finalUrl).pathname)) || "file";
-      } catch {
-        // keep the default name
-      }
-      name = name.replace(/[^\w.\- ]/g, "_").slice(0, 80);
+      } catch {}
 
+      name = name.replace(/[^\w.\- ]/g, "_").slice(0, 80);
       const document = await fs.readFile(dest);
       await sock.sendMessage(
         jid,
@@ -158,6 +169,8 @@ const dl = {
         },
         { quoted: msg }
       );
+
+      if (!isOwner) await reply(`ℹ️ Downloads left today: ${dailyLeft(sender)}`);
     });
   },
 };

@@ -90,7 +90,7 @@ async function assertPublicHost(hostname) {
 }
 
 // ---------- Direct file download (with size limit and safe redirects) ----------
-export async function downloadFile(startUrl, destPath) {
+export async function downloadFile(startUrl, destPath, maxBytes = MAX_BYTES) {
   let url = startUrl;
 
   for (let i = 0; i <= 3; i++) {
@@ -112,14 +112,14 @@ export async function downloadFile(startUrl, destPath) {
     if (!res.ok) throw new Error(`HTTP_${res.status}`);
 
     const declared = Number(res.headers.get("content-length") || 0);
-    if (declared > MAX_BYTES) throw new Error("TOO_BIG");
+    if (declared > maxBytes) throw new Error("TOO_BIG");
 
     let size = 0;
     const file = await fs.open(destPath, "w");
     try {
       for await (const chunk of res.body) {
         size += chunk.length;
-        if (size > MAX_BYTES) throw new Error("TOO_BIG");
+        if (size > maxBytes) throw new Error("TOO_BIG");
         await file.write(chunk);
       }
     } finally {
@@ -158,7 +158,7 @@ export function explainError(err) {
   }
   if (/PRIVATE_HOST/.test(text)) return "❌ That address is not allowed.";
   if (/TOO_BIG|max-filesize|larger than/i.test(text)) {
-    return `❌ That file is too large (max ${MAX_MB} MB).`;
+    return `❌ That file is too large (limit: ${MAX_MB} MB for the owner, ${NON_OWNER_MB} MB for others).`;
   }
   if (/NO_OUTPUT/.test(text)) {
     return "❌ Couldn't download that. It may be too long, too large or unavailable.";
@@ -176,4 +176,26 @@ export function explainError(err) {
     return "❌ The download took too long and was cancelled.";
   }
   return "❌ Download failed. Please try again later.";
+}
+
+// ---------- Limits for non-owners (.dl) ----------
+export const NON_OWNER_MB = 20;
+export const DAILY_LIMIT = 5; // downloads per user per day (resets when the bot restarts)
+const daily = new Map(); // user -> { day, count }
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+export function dailyLeft(user) {
+  const rec = daily.get(user);
+  if (!rec || rec.day !== today()) return DAILY_LIMIT;
+  return Math.max(DAILY_LIMIT - rec.count, 0);
+}
+
+export function useDaily(user) {
+  const rec = daily.get(user);
+  if (!rec || rec.day !== today()) {
+    daily.set(user, { day: today(), count: 1 });
+  } else {
+    rec.count++;
+  }
 }
