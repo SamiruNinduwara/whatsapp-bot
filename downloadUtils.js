@@ -8,8 +8,8 @@ import net from "net";
 
 const exec = promisify(execFile);
 
-export const MAX_MB = 50;
-export const MAX_BYTES = MAX_MB * 1024 * 1024;
+export const MAX_MB = 3000;
+export const MAX_BYTES = MAX_MB * 3000 * 3000;
 const COOLDOWN_MS = 20000; // 20 seconds per user
 
 // ---------- Cooldown ----------
@@ -42,6 +42,7 @@ export function enqueue(task) {
 // ---------- URL helpers ----------
 export const YOUTUBE_HOSTS = ["youtube.com", "youtu.be"];
 export const TIKTOK_HOSTS = ["tiktok.com"];
+export const FACEBOOK_HOSTS = ["facebook.com", "fb.watch", "fb.com"];
 
 export function parseUrl(text) {
   try {
@@ -171,6 +172,9 @@ export function explainError(err) {
   }
   if (/Video unavailable|Private video|not available/i.test(text)) {
     return "❌ That video is unavailable.";
+  }
+    if (/login required|log in|cookies/i.test(text)) {
+    return "❌ That video is private or requires a login.";
   }
   if (err.killed || /timeout|TimeoutError/i.test(text)) {
     return "❌ The download took too long and was cancelled.";

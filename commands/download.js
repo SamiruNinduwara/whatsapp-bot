@@ -7,6 +7,7 @@ import {
   DAILY_LIMIT,
   YOUTUBE_HOSTS,
   TIKTOK_HOSTS,
+  FACEBOOK_HOSTS,
   parseUrl,
   hostMatches,
   cooldownLeft,
@@ -127,6 +128,74 @@ const tiktok = {
   },
 };
 
+// ---------- .mp4 (YouTube / TikTok / Facebook video) ----------
+const PLATFORMS = [
+  { name: "YouTube", hosts: YOUTUBE_HOSTS },
+  { name: "TikTok", hosts: TIKTOK_HOSTS },
+  { name: "Facebook", hosts: FACEBOOK_HOSTS },
+];
+const QUALITIES = [240, 360, 480, 720]; // maximum video height
+
+const mp4 = {
+  name: "mp4",
+  aliases: ["video", "ytv", "fb", "facebook"],
+  description: "Download a YouTube / TikTok / Facebook video (.mp4 link 360)",
+  ownerOnly: false,
+  async run(ctx) {
+    const { sock, msg, jid, args } = ctx;
+    const reply = (text) => sock.sendMessage(jid, { text }, { quoted: msg });
+
+    const url = parseUrl(args[0] || "");
+    const platform = url && PLATFORMS.find((p) => hostMatches(url, p.hosts));
+    if (!platform) {
+      return reply(
+        "Use: .mp4 <YouTube / TikTok / Facebook link> [quality]\n" +
+          "Example: .mp4 https://youtu.be/xxxx 480\n" +
+          "Qualities: 240, 360 (default), 480, 720"
+      );
+    }
+
+    const quality = args[1] ? Number(args[1]) : 360;
+    if (!QUALITIES.includes(quality)) {
+      return reply("Quality must be one of: 240, 360, 480, 720");
+    }
+
+    // Prefer H.264/AAC (plays everywhere on WhatsApp), then fall back to anything that fits
+    const format =
+      `bv*[height<=${quality}][vcodec^=avc1]+ba[acodec^=mp4a]/` +
+      `b[height<=${quality}][ext=mp4]/b[height<=${quality}]/b`;
+
+    await runDownload(ctx, async (dir) => {
+      await ytDlp([
+        "-f", format,
+        "--merge-output-format", "mp4",
+        "--max-filesize", `${MAX_MB}M`,
+        "--match-filter", "duration<=?600", // 10 minutes max
+        "-o", path.join(dir, "video.%(ext)s"),
+        url.toString(),
+      ]);
+
+      const file = (await fs.readdir(dir)).find((f) => f.endsWith(".mp4"));
+      if (!file) throw new Error("NO_OUTPUT");
+
+      const filePath = path.join(dir, file);
+      const { size } = await fs.stat(filePath);
+      if (size > MAX_BYTES) throw new Error("TOO_BIG");
+
+      const video = await fs.readFile(filePath);
+      await sock.sendMessage(
+        jid,
+        {
+          video,
+          mimetype: "video/mp4",
+          caption: `✅ ${platform.name} video (up to ${quality}p)`,
+        },
+        { quoted: msg }
+      );
+    });
+  },
+};
+
 // ---------- .dl (direct link) ----------
 const dl = {
   name: "dl",
@@ -175,4 +244,4 @@ const dl = {
   },
 };
 
-export default [mp3, tiktok, dl];
+export default [mp3, mp4, tiktok, dl];

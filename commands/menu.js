@@ -5,7 +5,7 @@ import { sendWithLogo } from "../branding.js";
 // Commands that are not listed here appear under an automatic "Other" tab.
 const TABS = [
   { key: "ai", emoji: "🤖", title: "AI", commands: ["ai", "stt"] },
-  { key: "dl", emoji: "🎵", title: "Downloaders", commands: ["mp3", "tiktok", "dl"] },
+  { key: "dl", emoji: "🎵", title: "Downloaders", commands: ["mp3", "mp4", "tiktok", "dl"] },
   { key: "tools", emoji: "🛠️", title: "Tools", commands: ["sticker", "remind"] },
   {
     key: "group",
