@@ -25,20 +25,9 @@ import {
   explainError,
 } from "../downloadUtils.js";
 import { cacheGet, cacheAdd } from "../downloadCache.js";
-import {
-  QUALITIES,
-  getVideoInfo,
-  pickOptions,
-  estimateSize,
-  optionLabel,
-  buildCard,
-  sendCard,
-} from "../videoMenu.js";
-import { registerPoll } from "../pollMenu.js";
 
 const BIG_MEDIA_BYTES = 64 * 1024 * 1024; // above this, send as a document
 const FAST_AUDIO = config.fastAudio !== false; // send M4A without converting to MP3
-const MENU_TTL_MS = 10 * 60 * 1000; // quality menu stays active for 10 minutes
 
 // Errors that will not go away by trying another format
 const isFinalError = (err) =>
@@ -95,16 +84,13 @@ async function deliver(ctx, filePath, meta, cacheKey) {
 }
 
 // Shared flow: cooldown -> cache -> queue -> temp folder -> job -> cleanup
-// opts.skipCooldown is used when the user already passed the cooldown (quality menu)
-async function runDownload(ctx, job, cacheKey = null, opts = {}) {
+async function runDownload(ctx, job, cacheKey = null) {
   const { sock, msg, jid, sender } = ctx;
   const reply = (text) => sock.sendMessage(jid, { text }, { quoted: msg });
 
-  if (!opts.skipCooldown) {
-    const wait = cooldownLeft(sender);
-    if (wait) return reply(`⏳ Please wait ${wait}s before your next download.`);
-    markUsed(sender);
-  }
+  const wait = cooldownLeft(sender);
+  if (wait) return reply(`⏳ Please wait ${wait}s before your next download.`);
+  markUsed(sender);
 
   // Already downloaded before? Send it straight away (no queue, no download)
   if (cacheKey) {
@@ -226,118 +212,12 @@ const PLATFORMS = [
   { name: "TikTok", hosts: TIKTOK_HOSTS },
   { name: "Facebook", hosts: FACEBOOK_HOSTS },
 ];
-
-// Downloads one video at one quality and sends it
-async function downloadVideo(ctx, url, platform, quality, opts = {}) {
-  const id = platform.name === "YouTube" ? youtubeId(url) : null;
-  const cacheKey = `mp4:${platform.name}:${id || cleanUrl(url)}:${quality}`;
-
-  // 1st choice: a ready-made H.264 mp4 (no merging needed, fastest).
-  // 2nd choice: separate video + audio merged together. Then anything that fits.
-  const format =
-    `b[height<=${quality}][ext=mp4][vcodec^=avc1]/` +
-    `bv*[height<=${quality}][vcodec^=avc1]+ba[acodec^=mp4a]/` +
-    `b[height<=${quality}][ext=mp4]/b[height<=${quality}]/b`;
-
-  await runDownload(
-    ctx,
-    async (dir) => {
-      await ytDlp([
-        "-f", format,
-        "--merge-output-format", "mp4",
-        "--max-filesize", `${MAX_MB}M`,
-        "--match-filter", `duration<=?${MAX_MINUTES * 60}`,
-        "-o", path.join(dir, "video.%(ext)s"),
-        url.toString(),
-      ]);
-
-      const file = (await fs.readdir(dir)).find((f) => f.endsWith(".mp4"));
-      if (!file) throw new Error("NO_OUTPUT");
-
-      const filePath = path.join(dir, file);
-      const { size } = await fs.stat(filePath);
-      if (size > MAX_BYTES) throw new Error("TOO_BIG");
-
-      await deliver(
-        ctx,
-        filePath,
-        {
-          type: "video",
-          mimetype: "video/mp4",
-          fileName: "video.mp4",
-          caption: `✅ ${platform.name} video (up to ${quality}p)`,
-        },
-        cacheKey
-      );
-    },
-    cacheKey,
-    opts
-  );
-}
-
-// Shows the video card and a poll; tapping an option starts the download
-async function showQualityMenu(ctx, url, platform) {
-  const { sock, msg, jid, sender } = ctx;
-  const reply = (text) => sock.sendMessage(jid, { text }, { quoted: msg });
-
-  const wait = cooldownLeft(sender);
-  if (wait) return reply(`⏳ Please wait ${wait}s before your next download.`);
-  markUsed(sender);
-
-  await reply("🔎 Getting the video details...");
-
-  let info;
-  try {
-    info = await getVideoInfo(url.toString());
-  } catch (err) {
-    console.error("Video info error:", err.message);
-    return reply(explainError(err));
-  }
-
-  if (info.duration && info.duration > MAX_MINUTES * 60) {
-    return reply(`❌ That video is longer than ${MAX_MINUTES} minutes.`);
-  }
-
-  // Nothing to choose from? Download straight away.
-  const qualities = pickOptions(info);
-  if (qualities.length < 2) {
-    return downloadVideo(ctx, url, platform, qualities[0] || 240, { skipCooldown: true });
-  }
-
-  const options = qualities.map((q) => ({ q, size: estimateSize(info, q) }));
-  const labels = options.map(optionLabel);
-  const qualityOf = new Map(labels.map((label, i) => [label, options[i].q]));
-
-  await sendCard(sock, jid, msg, buildCard(info, platform.name, options), info.thumbnail);
-
-  const poll = await sock.sendMessage(jid, {
-    poll: { name: "🎬 Choose a video quality", values: labels, selectableCount: 1 },
-  });
-
-  registerPoll(poll, {
-    options: labels,
-    ttlMs: MENU_TTL_MS,
-    // liveSock is the connection that is active right now (it may have reconnected since)
-    onChoice: async (label, _voter, liveSock) => {
-      const quality = qualityOf.get(label);
-      if (!quality) return;
-      await downloadVideo({ ...ctx, sock: liveSock }, url, platform, quality, {
-        skipCooldown: true,
-      });
-    },
-    onExpired: (liveSock) =>
-      liveSock.sendMessage(
-        jid,
-        { text: "⌛ That quality menu expired. Please send the link again." },
-        { quoted: msg }
-      ),
-  });
-}
+const QUALITIES = [240, 360, 480, 720]; // maximum video height
 
 const mp4 = {
   name: "mp4",
   aliases: ["video", "ytv", "fb", "facebook"],
-  description: "Download a video: .mp4 link (pick a quality) or .mp4 link 480",
+  description: "Download a YouTube / TikTok / Facebook video (.mp4 link 360)",
   ownerOnly: false,
   async run(ctx) {
     const { sock, msg, jid, args } = ctx;
@@ -347,23 +227,60 @@ const mp4 = {
     const platform = url && PLATFORMS.find((p) => hostMatches(url, p.hosts));
     if (!platform) {
       return reply(
-        "Use: .mp4 <YouTube / TikTok / Facebook link>\n" +
-          "You will get a menu to tap a quality.\n" +
-          "Or choose it yourself: .mp4 <link> 480  (240, 360, 480, 720)"
+        "Use: .mp4 <YouTube / TikTok / Facebook link> [quality]\n" +
+          "Example: .mp4 https://youtu.be/xxxx 480\n" +
+          "Qualities: 240, 360 (default), 480, 720"
       );
     }
 
-    const quality = args[1] ? Number(args[1]) : null;
-    if (args[1] && !QUALITIES.includes(quality)) {
+    const quality = args[1] ? Number(args[1]) : 360;
+    if (!QUALITIES.includes(quality)) {
       return reply("Quality must be one of: 240, 360, 480, 720");
     }
 
-    // Quality given (or the menu is turned off): download straight away
-    if (quality || config.qualityMenu === false) {
-      return downloadVideo(ctx, url, platform, quality || 360);
-    }
+    const id = platform.name === "YouTube" ? youtubeId(url) : null;
+    const cacheKey = `mp4:${platform.name}:${id || cleanUrl(url)}:${quality}`;
 
-    await showQualityMenu(ctx, url, platform);
+    // 1st choice: a ready-made H.264 mp4 (no merging needed, fastest).
+    // 2nd choice: separate video + audio merged together. Then anything that fits.
+    const format =
+      `b[height<=${quality}][ext=mp4][vcodec^=avc1]/` +
+      `bv*[height<=${quality}][vcodec^=avc1]+ba[acodec^=mp4a]/` +
+      `b[height<=${quality}][ext=mp4]/b[height<=${quality}]/b`;
+
+    await runDownload(
+      ctx,
+      async (dir) => {
+        await ytDlp([
+          "-f", format,
+          "--merge-output-format", "mp4",
+          "--max-filesize", `${MAX_MB}M`,
+          "--match-filter", `duration<=?${MAX_MINUTES * 60}`,
+          "-o", path.join(dir, "video.%(ext)s"),
+          url.toString(),
+        ]);
+
+        const file = (await fs.readdir(dir)).find((f) => f.endsWith(".mp4"));
+        if (!file) throw new Error("NO_OUTPUT");
+
+        const filePath = path.join(dir, file);
+        const { size } = await fs.stat(filePath);
+        if (size > MAX_BYTES) throw new Error("TOO_BIG");
+
+        await deliver(
+          ctx,
+          filePath,
+          {
+            type: "video",
+            mimetype: "video/mp4",
+            fileName: "video.mp4",
+            caption: `✅ ${platform.name} video (up to ${quality}p)`,
+          },
+          cacheKey
+        );
+      },
+      cacheKey
+    );
   },
 };
 

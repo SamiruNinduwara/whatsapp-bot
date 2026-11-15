@@ -1,5 +1,4 @@
 import "dotenv/config";
-import { getStoredMessage, handlePollUpdates } from "./pollMenu.js";
 import dns from "dns";
 import makeWASocket, {
   useMultiFileAuthState,
@@ -58,7 +57,6 @@ async function startBot() {
     markOnlineOnConnect: false, // don't show the bot as always online (saves battery and data)
     syncFullHistory: false, // don't download old chats
     cachedGroupMetadata: async (id) => getCachedMeta(id), // faster replies in groups
-   getMessage: async (key) => getStoredMessage(key), // needed to read poll votes
   });
 
   throttleSends(sock);
@@ -110,8 +108,6 @@ async function startBot() {
   });
 
   sock.ev.on("group-participants.update", (ev) => handleGroupUpdate(sock, ev));
-    // A tap on a poll option arrives as a "messages.update" event
-  sock.ev.on("messages.update", (updates) => handlePollUpdates(sock, updates));
 
   // Keep the group info cache fresh
   sock.ev.on("groups.update", (updates) => {

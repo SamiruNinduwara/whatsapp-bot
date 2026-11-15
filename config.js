@@ -17,8 +17,6 @@ export const config = {
   cacheMaxMB: 500, // total size of the cache
   cacheMaxFileMB: 100, // biggest single file that is cached
   cacheDays: 7, // how long a file is kept
-  qualityMenu: false, // .mp4 link -> downloads 360p straight away (no poll)
-  showThumbnails: true, // show the video thumbnail on the quality card
   owners: ["94765579961", "249396520317017"], // owner IDs (digits only)
   sendGapMinMs: 400, // minimum gap between messages sent back to back
   sendGapMaxMs: 900, // maximum gap
