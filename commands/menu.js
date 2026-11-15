@@ -4,7 +4,7 @@ import { sendWithLogo } from "../branding.js";
 // Each tab is one "page" of the menu.
 // Commands that are not listed here appear under an automatic "Other" tab.
 const TABS = [
-  { key: "ai", emoji: "🤖", title: "AI", commands: ["ai", "stt"] },
+  { key: "ai", emoji: "🤖", title: "AI", commands: ["ai", "stt", "ocr"] },
   { key: "dl", emoji: "🎵", title: "Downloaders", commands: ["mp3", "mp4", "tiktok", "dl"] },
     { key: "tools", emoji: "🛠️", title: "Tools", commands: ["sticker", "remind", "weather", "rates", "fuel", "fuelset", "fuelcheck"] },
   {
