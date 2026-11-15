@@ -84,6 +84,25 @@ function searchPixabay(query) {
   });
 }
 
+// Pixabay results must be cached for 24 hours (their rule), so the same search is only sent once a day
+function searchPixabay(query) {
+  const params = new URLSearchParams({
+    key: process.env.UNSPLASH_API_KEY,
+    q: query,
+    image_type: "photo",
+    safesearch: "true", // always on
+    per_page: "20",
+    lang: "en",
+  });
+
+  return cached(`pixabay:${query.toLowerCase()}`, 24 * 60 * 60 * 1000, async () => {
+    const data = await getJson(`https://pixabay.com/api/?${params}`, 15000);
+    return (data.hits || [])
+      .filter((h) => h.webformatURL)
+      .map((h) => ({ url: h.webformatURL, user: h.user || "" }));
+  });
+}
+
 // Only downloads from pixabay.com and only real images
 async function fetchImage(url) {
   const u = new URL(url);
