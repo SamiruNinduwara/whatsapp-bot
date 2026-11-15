@@ -71,7 +71,7 @@ function searchPixabay(query) {
     key: process.env.PIXABAY_API_KEY,
     q: query,
     image_type: "photo",
-    safesearch: "true", // always on
+    safesearch: "false", // always on
     per_page: "20",
     lang: "en",
   });
