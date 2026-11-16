@@ -32,7 +32,7 @@ Type `.menu` in WhatsApp to see every command.
 1. Install Node.js 20 or newer (in Termux: `pkg install nodejs git ffmpeg python imagemagick`).
 2. Run `npm install`.
 3. Create a `.env` file with your keys (see below). Never upload this file.
-4. Edit `src/config.js` (bot name, owner number, limits).
+4. Edit `src/config.js` (owner number, limits).
 5. First run: `node index.js 94XXXXXXXXX` and enter the pairing code in WhatsApp (Linked devices).
 6. Keep it running with pm2: `pm2 start index.js --name whatsapp-bot`.
 
