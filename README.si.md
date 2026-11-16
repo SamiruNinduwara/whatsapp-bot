@@ -161,7 +161,7 @@ Termux එකේ `✅ Bot online!` පෙනුණාම bot එක link වෙ�
 **ඔයාගේම** WhatsApp එකෙන්, bot number එකට මේක යවන්න:
 
 ```
-.ping
+.alive
 ```
 
 Bot එක reply කරන්න ඕනේ. ඊට පස්සේ `.menu` try කරන්න.
@@ -172,10 +172,10 @@ Bot එක reply කරන්න ඕනේ. ඊට පස්සේ `.menu` try �
 
 ඔයා command එකක් යවද්දී *"This command is for the bot owner only"* කියලා ආවොත්, WhatsApp එක ඔයාව phone number එකකින් නෙවෙයි, සැඟවුණු ID එකකින් හඳුන්වනවා. ඒක හොයාගන්න:
 
-1. ඔයාගේ account එකෙන් `.ping` යවන්න.
+1. ඔයාගේ account එකෙන් `.alive` යවන්න.
 2. Termux screen එක බලන්න. මෙහෙම line එකක් පෙනෙනවා:
    ```
-   [cmd] .ping from 249396520317017 (owner: false)
+   [cmd] .alive from 249396520317017 (owner: false)
    ```
 3. ඒ දිගු අංකය `.env` එකට දාන්න (ඔයාගේ line එකේ තියෙන අංකය පාවිච්චි කරන්න):
    ```bash
@@ -185,7 +185,7 @@ Bot එක reply කරන්න ඕනේ. ඊට පස්සේ `.menu` try �
    ID එකකට වඩා තියෙනවා නම් කොමා එකකින් වෙන් කරන්න: `OWNER_IDS=2493...,5678...`.
 4. Bot එක restart කරන්න: `pm2 restart whatsapp-bot --update-env` (නැත්නම් **Ctrl + C** එබුවම නවතිනවා, ආයෙ `node index.js` කරන්න).
 
-ආයෙ `.ping` යවන්න. දැන් line එකේ `owner: true` කියලා පෙනෙන්න ඕනේ.
+ආයෙ `.alive` යවන්න. දැන් line එකේ `owner: true` කියලා පෙනෙන්න ඕනේ.
 
 ### පියවර 12: දවස පුරාම දුවන්න තියන්න
 

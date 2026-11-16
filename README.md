@@ -164,7 +164,7 @@ When Termux shows `✅ Bot online!`, the bot is linked. You do **not** need the 
 From **your own** WhatsApp, send this to the bot number:
 
 ```
-.ping
+.alive
 ```
 
 The bot should answer. Then try `.menu`.
@@ -175,10 +175,10 @@ The bot should answer. Then try `.menu`.
 
 If a command says *"This command is for the bot owner only"* when you send it, WhatsApp is using a hidden ID for you instead of your phone number. To find it:
 
-1. Send `.ping` from your own account.
+1. Send `.alive` from your own account.
 2. Look at the Termux screen. You will see a line like:
    ```
-   [cmd] .ping from 249396520317017 (owner: false)
+   [cmd] .alive from 249396520317017 (owner: false)
    ```
 3. Put that long number in `.env` (use your own number from the line):
    ```bash
@@ -188,7 +188,7 @@ If a command says *"This command is for the bot owner only"* when you send it, W
    If you have more than one ID, separate them with commas: `OWNER_IDS=2493...,5678...`.
 4. Restart the bot: `pm2 restart whatsapp-bot --update-env` (or stop it with **Ctrl + C** and run `node index.js` again).
 
-Send `.ping` again. The line should now say `owner: true`.
+Send `.alive` again. The line should now say `owner: true`.
 
 ### Step 12: Keep it running all day
 
