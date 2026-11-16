@@ -9,6 +9,8 @@
   Developer: <b>Samiru Ninduwara</b>
 </p>
 
+<p align="center">🇬🇧 English | 🇱🇰 <a href="README.si.md">සිංහල</a></p>
+
 ---
 
 ## ✨ What it can do
@@ -105,13 +107,19 @@ This takes a few minutes. Warnings are normal. Only red errors matter.
 
 Replace `PASTE_YOUR_KEY_HERE` with your real key. Do not put spaces around the `=` sign.
 
+```bash
 echo 'GEMINI_API_KEY=PASTE_YOUR_KEY_HERE' > .env
 echo 'GEMINI_MODEL=gemini-3.5-flash-lite' >> .env
 echo 'PIXABAY_API_KEY=PASTE_YOUR_KEY_HERE' >> .env
 echo 'OWNER_NUMBER=94771234567' >> .env
 echo 'OWNER_IDS=' >> .env
+```
+
+The first line uses `>` (creates the file). The other lines use `>>` (add to the file). Skip the Pixabay line if you do not want `.img`.
 
 `OWNER_NUMBER` is **your own main number** (country code first, no `+`, no leading `0`). The bot will treat this number as its owner. `OWNER_IDS` is filled in Step 11.
+
+A template of this file is also in the project: `.env.example`.
 
 Check that the file exists. This command shows the names only, not the keys:
 
@@ -156,7 +164,7 @@ When Termux shows `✅ Bot online!`, the bot is linked. You do **not** need the 
 From **your own** WhatsApp, send this to the bot number:
 
 ```
-.alive
+.ping
 ```
 
 The bot should answer. Then try `.menu`.
@@ -265,6 +273,7 @@ pm2 restart whatsapp-bot
 | The bot does not answer | Send from a **different** number. Check `pm2 status`. Look at `pm2 logs whatsapp-bot` |
 | The bot does not answer in a group | The **bot number must be a member** of the group. Admin commands also need the bot to be an admin |
 | "This command is for the bot owner only" | Do Step 11 |
+| `⚠️ OWNER_NUMBER is not set in the .env file` | Add `OWNER_NUMBER=94771234567` to `.env` (Step 7) and restart the bot |
 | `Logged out. Delete the auth_info folder...` | Run `pm2 stop whatsapp-bot`, then `rm -rf auth_info`, then do Step 9 again |
 | `.mp3` / `.mp4` fail | Update the downloader: `pip install -U yt-dlp yt-dlp-ejs` |
 | Photos, stickers or logos do not send | Your internet may block WhatsApp's media server. Try Wi-Fi or mobile data, whichever you did not use |
