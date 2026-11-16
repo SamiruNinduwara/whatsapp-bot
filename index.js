@@ -6,14 +6,14 @@ import makeWASocket, {
   fetchLatestBaileysVersion,
 } from "@whiskeysockets/baileys";
 import pino from "pino";
-import { config } from "./config.js";
-import { loadCommands, handleMessage } from "./handler.js";
-import { initReminders } from "./reminders.js";
-import { handleGroupUpdate } from "./groupEvents.js";
-import { getCachedMeta, setCachedMeta, clearCachedMeta } from "./groupUtils.js";
-import { throttleSends } from "./throttle.js";
-import { startFuelWatcher } from "./fuelAuto.js";
-import { announceRestart } from "./restartNotice.js";
+import { config } from "./src/config.js";
+import { loadCommands, handleMessage } from "./src/handler.js";
+import { initReminders } from "./src/reminders.js";
+import { handleGroupUpdate } from "./src/groupEvents.js";
+import { getCachedMeta, setCachedMeta, clearCachedMeta } from "./src/groupUtils.js";
+import { throttleSends } from "./src/throttle.js";
+import { startFuelWatcher } from "./src/fuelAuto.js";
+import { announceRestart } from "./src/restartNotice.js";
 
 dns.setDefaultResultOrder("ipv4first"); // prefer IPv4 (fixes many Termux timeouts)
 
