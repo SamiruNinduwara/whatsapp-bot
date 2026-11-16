@@ -9,7 +9,7 @@
   Developer: <b>Samiru Ninduwara</b>
 </p>
 
-<p align="center">🇱🇰 සිංහල | 🇬🇧 <a href="README.md">English</a></p>
+<p align="center">සිංහල | <a href="README.md">English</a></p>
 
 ---
 
