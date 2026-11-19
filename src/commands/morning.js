@@ -1,5 +1,6 @@
 import { requireAdmin } from "../groupUtils.js";
 import { takeCooldown } from "../apiUtils.js";
+import { isValidDate } from "../holidays.js";
 import {
   TIMEZONE,
   MAX_CHATS,
@@ -15,18 +16,20 @@ import {
 
 const USAGE =
   "🌅 *Good morning message*\n\n" +
+  "Every morning the bot says good morning. On a Poya day or a public holiday it tells you that too.\n\n" +
   ".morning on  ➜ turn it on for this chat\n" +
   ".morning off  ➜ turn it off\n" +
   ".morning now  ➜ send today's message right now (to test)\n" +
   ".morning  ➜ show the settings\n\n" +
   "In a group, only group admins can change it.\n" +
+  "See the holidays: .holiday";
 
 const SUBS = ["on", "off", "now", "status", "time", "help"];
 
 export default {
   name: "morning",
   aliases: ["goodmorning"],
-  description: "Daily good morning message (.morning on)",
+  description: "Daily good morning message with Poya days and holidays (.morning on)",
   ownerOnly: false,
   async run(ctx) {
     const { sock, msg, jid, args, isGroup, isOwner } = ctx;

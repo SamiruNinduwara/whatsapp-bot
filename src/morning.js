@@ -1,5 +1,6 @@
 import { config } from "./config.js";
 import { getSetting, setSetting } from "./groupUtils.js";
+import { TIMEZONE, todayKey, daysBetween, longDate, holidaysOn, lastHolidayDate } from "./holidays.js";
 
 // ---------- Settings (change them in config.js) ----------
 export { TIMEZONE };
@@ -98,6 +99,30 @@ function greetingFor(dateKey) {
   return GREETINGS[((dayNumber % GREETINGS.length) + GREETINGS.length) % GREETINGS.length];
 }
 
+// The text for one day: a greeting, and a note if it is a Poya day or a public holiday
+export function buildMorningMessage(dateKey = todayKey()) {
+  const [english, sinhala] = greetingFor(dateKey);
+  const events = holidaysOn(dateKey);
+
+  const lines = [`🌅 *${english}*`, `${sinhala}`, `📅 ${longDate(dateKey)}`];
+
+  for (const e of events) {
+    lines.push("");
+    if (e.type === "poya") {
+      lines.push(`🌕 Today is *${e.name}*${e.si ? ` (${e.si})` : ""}`);
+      lines.push(`සුභ පොහොය දවසක් වේවා! 🙏`);
+    } else {
+      lines.push(`🎉 Today is a public holiday: *${e.name}*`);
+      lines.push(e.merc ? `🏢 A bank, public and mercantile holiday.` : `🏦 A bank and public holiday.`);
+    }
+  }
+
+  if (events.length === 0) lines.push("", `Have a great day! 🙌`);
+
+  lines.push("", `_${config.botName} • stop these messages: .morning off_`);
+  return lines.join("\n");
+}
+
 // Used by ".morning now"
 export async function sendNow(sock, jid, dateKey) {
   await sock.sendMessage(jid, { text: buildMorningMessage(dateKey) });
@@ -143,6 +168,30 @@ async function tick() {
   }
 }
 
+// Tells the owner when the holiday list is about to run out (at most once a week)
+async function checkListEnd() {
+  if (!currentSock) return;
+
+  const last = lastHolidayDate();
+  const today = todayKey();
+  const daysLeft = last ? daysBetween(today, last) : -1;
+  if (daysLeft >= 45) return;
+
+  const lastWarning = getSetting("global", "holidayWarning");
+  if (lastWarning && daysBetween(lastWarning, today) < 7) return;
+
+  const owner = String(config.ownerNumber || "").replace(/\D/g, "");
+  if (!/^\d{9,15}$/.test(owner)) return;
+
+  await currentSock.sendMessage(`${owner}@s.whatsapp.net`, {
+    text:
+      `⚠️ *Holiday list is running out*\n\n` +
+      (last ? `The list covers dates only until ${last}.` : `The holiday list is empty.`) +
+      `\nWhen the government announces the next year's holidays, add the Poya days and holidays ` +
+      `(.holiday add 2028-01-13 poya Duruthu Full Moon Poya Day) or update src/holidayList.js.`,
+  });
+  setSetting("global", "holidayWarning", today);
+}
 
 // Checks every minute. Called every time the bot connects (it keeps using the newest connection).
 export function startMorning(sock) {
