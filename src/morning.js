@@ -1,6 +1,6 @@
 import { config } from "./config.js";
 import { getSetting, setSetting } from "./groupUtils.js";
-import { TIMEZONE, todayKey, daysBetween, longDate, holidaysOn, lastHolidayDate } from "./holidays.js";
+import { TIMEZONE, todayKey, daysBetween;
 
 // ---------- Settings (change them in config.js) ----------
 export { TIMEZONE };

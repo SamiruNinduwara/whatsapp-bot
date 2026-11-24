@@ -22,7 +22,6 @@ const USAGE =
   ".morning now  ➜ send today's message right now (to test)\n" +
   ".morning  ➜ show the settings\n\n" +
   "In a group, only group admins can change it.\n" +
-  "See the holidays: .holiday";
 
 const SUBS = ["on", "off", "now", "status", "time", "help"];
 
