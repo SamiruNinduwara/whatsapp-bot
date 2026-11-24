@@ -237,6 +237,73 @@ Logs බලන එක නවත්තන්න **Ctrl + C** ඔබන්න. Bot
 
 Setting එකක් වෙනස් කළාට පස්සේ bot එක restart කරන්න: `pm2 restart whatsapp-bot`.
 
+
+---
+
+## 🔁 Bot එක නතර වුණාම, logout වුණාම, අලුතින් පටන් ගන්න ඕනේ වුණාම
+
+ඔයාගේ තත්ත්වය table එකේ හොයාගෙන, ඊට යටින් තියෙන පියවර කරන්න.
+
+| මොකද වුණේ | කරන්න ඕනේ |
+|---|---|
+| Bot එක නතර වුණා, නැත්නම් phone එක restart වුණා (`pm2 status` හිස්) | **අ. ආයෙ පටන් ගන්න** |
+| Log එකේ `Logged out` කියනවා, නැත්නම් *Linked devices* වලින් bot number එක අයින් වෙලා | **ආ. WhatsApp ආයෙ link කරන්න** |
+| ගොඩක් අවුල් වෙලා, මුල ඉඳන්ම පටන් ගන්න ඕනේ | **ඇ. අලුතින් පටන් ගැනීම** |
+
+Bot එක දේවල් තියාගන්න තැන්:
+
+| මොකක්ද | කොහේද |
+|---|---|
+| ඔයාගේ keys සහ number එක | `.env` |
+| WhatsApp login එක | `auth_info/` |
+| Settings, reminders, නිවාඩු වෙනස්කම්, download cache | `data/` |
+
+### අ. ආයෙ පටන් ගන්න
+
+```bash
+cd ~/whatsapp-bot
+bash tools/start.sh
+```
+
+මේකෙන් Termux නිදි වැටෙන එක වළක්වනවා, bot එක pm2 වලින් පටන් ගන්නවා (කලින් තියෙනවා නම් restart කරනවා), pm2 ලයිස්තුව save කරනවා, log එක පෙන්නනවා. `✅ Bot online!` පෙනුණාම වැඩ. Pairing code එකක් **ඕනේ නෑ**.
+
+### ආ. WhatsApp ආයෙ link කරන්න (bot logout වුණාම)
+
+1. Bot එක නවත්තන්න: `pm2 stop whatsapp-bot`
+2. පරණ login එක මකන්න: `rm -rf auth_info`
+3. **Bot ගේ** number එකෙන් ආයෙ link කරන්න (country code එක්ක, `+` නැතුව, මුල 0 නැතුව):
+   ```bash
+   node index.js 94771234567
+   ```
+4. Bot number එකේ WhatsApp එකේ: **Settings, Linked devices, Link a device, Link with phone number instead**, ඊට පස්සේ pairing code එක type කරන්න.
+5. `✅ Bot online!` පෙනුණාම **Ctrl + C** ඔබලා, `bash tools/start.sh` run කරන්න.
+
+ඔයාගේ settings, `.env`, reminders, cache **ස්පර්ශ වෙන්නේ නෑ**.
+
+### ඇ. අලුතින් පටන් ගැනීම (මුල ඉඳන්)
+
+> ⚠️ මේකෙන් bot එකේ save වෙලා තියෙන settings (reminders, group settings, නිවාඩු වෙනස්කම්, download cache) මැකෙනවා. `.env` file එක තියෙනවා.
+> කලින් පිටපතක් ඕනේ නම්: `cp -r data data_backup`
+
+```bash
+cd ~/whatsapp-bot
+pm2 delete whatsapp-bot
+rm -rf auth_info data
+git pull
+npm install
+node index.js 94771234567
+```
+
+ආ හි වගේම pairing code එක දාලා, **Ctrl + C** ඔබලා `bash tools/start.sh` run කරන්න.
+
+උපදෙස්:
+
+- Pairing code එක ටික වෙලාවක් විතරයි වැඩ. අවුල් වුණොත් `node index.js ...` command එක ආයෙ run කරලා අලුත් code එකක් ගන්න.
+- WhatsApp එක "උත්සාහ ගොඩක්" කියලා කිව්වොත් ටික වෙලාවක් (සමහර විට පැය කීපයක්) ඉඳලා ආයෙ try කරන්න.
+- ඔයාගේ `.env` file එකේ පෞද්ගලික පිටපතක් තියාගන්න. ඒකේ ඔයාගේ keys තියෙනවා.
+- `.env` හෝ `auth_info/` GitHub එකට කවදාවත් දාන්න එපා. ඒවා ලැබෙන ඕනෑම කෙනෙකුට ඔයාගේ bot එක පාලනය කරන්න පුළුවන්.
+
+ඊළඟ වතාවේ bot එක දුවන්නේ නැත්නම් `bash tools/start.sh` run කරන්න.
 ---
 
 ## 🔄 Bot එක update කරන හැටි
@@ -271,7 +338,8 @@ pm2 restart whatsapp-bot
 | Group එකේ bot එක reply කරන්නේ නෑ | **Bot number එක group එකේ member කෙනෙක්** වෙන්න ඕනේ. Admin commands වලට bot එකත් admin වෙන්න ඕනේ |
 | "This command is for the bot owner only" | පියවර 11 කරන්න |
 | `⚠️ OWNER_NUMBER is not set in the .env file` | `.env` එකට `OWNER_NUMBER=94771234567` එකතු කරලා (පියවර 7) bot එක restart කරන්න |
-| `Logged out. Delete the auth_info folder...` | `pm2 stop whatsapp-bot`, ඊට පස්සේ `rm -rf auth_info`, ඊට පස්සේ පියවර 9 ආයෙ කරන්න |
+| `Logged out. Delete the auth_info folder...` | "Bot එක නතර වුණාම, logout වුණාම..." කොටසේ **ආ. WhatsApp ආයෙ link කරන්න** කරන්න |
+| Phone එක restart වුණාට පස්සේ bot එක දුවන්නේ නෑ | `bash tools/start.sh` run කරන්න |
 | `.mp3` / `.mp4` fail වෙනවා | Downloader එක update කරන්න: `pip install -U yt-dlp yt-dlp-ejs` |
 | Photos, stickers, logos යවන්න බෑ | ඔයාගේ internet එකෙන් WhatsApp ගේ media server එක අවහිර වෙන්න පුළුවන්. Wi-Fi ↔ mobile data මාරු කරලා බලන්න |
 | `.logo` එකෙන් ImageMagick නෑ කියනවා | `pkg install imagemagick -y` |

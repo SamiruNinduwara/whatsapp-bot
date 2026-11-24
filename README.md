@@ -20,7 +20,7 @@
 | 🤖 **AI** | `.ai` chat, `.stt` voice note to text, `.ocr` read text from a photo, `.tr` translate |
 | 🎵 **Downloads** | `.mp3` YouTube audio, `.mp4` YouTube / TikTok / Facebook video, `.tiktok`, `.dl` direct file link |
 | 🛠️ **Tools** | `.sticker`, `.remind`, `.weather`, `.rates` (LKR), `.fuel` (Sri Lanka), `.logo`, `.img` |
-| 👥 **Group** | `.antilink`, `.welcome`, `.tagall`, `.kick`, `.promote`, `.demote`, `.mute`, `.unmute` |
+| 👥 **Group** | `.antilink`, `.welcome`, `.tagall`, `.add`, `.kick`, `.promote`, `.demote`, `.mute`, `.unmute` |
 | ⚙️ **Owner** | `.update`, `.restart`, `.status`, `.cache`, `.say`, `.fuelset` |
 
 Send `.menu` in WhatsApp to see all commands, and `.cmd` for one full list.
@@ -221,6 +221,75 @@ Everyday pm2 commands:
 4. Do not remove the Termux notification.
 5. Keep the phone on a charger and on stable Wi-Fi.
 
+
+---
+
+## 🔁 If the bot stops, logs out or needs a fresh start
+
+Find your situation in the table, then follow the steps below it.
+
+| What happened | What to do |
+|---|---|
+| The bot stopped, or the phone restarted (`pm2 status` shows nothing) | **A. Start it again** |
+| The log says `Logged out`, or the bot's number was removed from *Linked devices* | **B. Link WhatsApp again** |
+| Something is badly broken and you want to begin from zero | **C. Fresh start** |
+
+Where the bot keeps things:
+
+| What | Where |
+|---|---|
+| Your keys and your number | `.env` |
+| The WhatsApp login | `auth_info/` |
+| Settings, reminders, holiday edits, download cache | `data/` |
+
+### A. Start it again
+
+```bash
+cd ~/whatsapp-bot
+bash tools/start.sh
+```
+
+This keeps Termux awake, starts the bot with pm2 (or restarts it if it is already there), saves the pm2 list and shows the log. When you see `✅ Bot online!`, it works. You do **not** need a pairing code.
+
+### B. Link WhatsApp again (the bot got logged out)
+
+1. Stop the bot: `pm2 stop whatsapp-bot`
+2. Delete the old login: `rm -rf auth_info`
+3. Link again with the **bot's** number (country code first, no `+`, no leading `0`):
+   ```bash
+   node index.js 94771234567
+   ```
+4. In WhatsApp on the bot's phone: **Settings, Linked devices, Link a device, Link with phone number instead**, then type the pairing code.
+5. When you see `✅ Bot online!`, press **Ctrl + C**, then run `bash tools/start.sh`.
+
+Your settings, `.env` file, reminders and cache are **not** touched.
+
+### C. Fresh start (begin from zero)
+
+> ⚠️ This deletes the bot's saved settings (reminders, group settings, holiday edits, download cache). Your `.env` file stays.
+> If you want a copy first: `cp -r data data_backup`
+
+```bash
+cd ~/whatsapp-bot
+pm2 delete whatsapp-bot
+rm -rf auth_info data
+git pull
+npm install
+node index.js 94771234567
+```
+
+Enter the pairing code as in B, press **Ctrl + C**, then run `bash tools/start.sh`.
+
+
+Next time the bot is not running, just run `bash tools/start.sh`.
+
+Tips:
+
+- The pairing code works for a short time only. If it fails, run the `node index.js ...` command again for a new code.
+- If WhatsApp says there were too many attempts, wait a while (even a few hours) and try again.
+- Keep a private copy of your `.env` file. It has your keys.
+- Never upload `.env` or `auth_info/` to GitHub. Anyone who has them controls the bot.
+
 ---
 
 ## 🔧 Settings you may want to change
@@ -274,7 +343,8 @@ pm2 restart whatsapp-bot
 | The bot does not answer in a group | The **bot number must be a member** of the group. Admin commands also need the bot to be an admin |
 | "This command is for the bot owner only" | Do Step 11 |
 | `⚠️ OWNER_NUMBER is not set in the .env file` | Add `OWNER_NUMBER=94771234567` to `.env` (Step 7) and restart the bot |
-| `Logged out. Delete the auth_info folder...` | Run `pm2 stop whatsapp-bot`, then `rm -rf auth_info`, then do Step 9 again |
+| `| `Logged out. Delete the auth_info folder...` | Follow **B. Link WhatsApp again** in the section "If the bot stops, logs out or needs a fresh start" |
+| The bot is not running after the phone restarted | Run `bash tools/start.sh` |
 | `.mp3` / `.mp4` fail | Update the downloader: `pip install -U yt-dlp yt-dlp-ejs` |
 | Photos, stickers or logos do not send | Your internet may block WhatsApp's media server. Try Wi-Fi or mobile data, whichever you did not use |
 | `.logo` says ImageMagick is missing | `pkg install imagemagick -y` |
