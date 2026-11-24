@@ -12,7 +12,6 @@ import { initReminders } from "./src/reminders.js";
 import { handleGroupUpdate } from "./src/groupEvents.js";
 import { getCachedMeta, setCachedMeta, clearCachedMeta } from "./src/groupUtils.js";
 import { throttleSends } from "./src/throttle.js";
-import { startFuelWatcher } from "./src/fuelAuto.js";
 import { announceRestart } from "./src/restartNotice.js";
 
 dns.setDefaultResultOrder("ipv4first"); // prefer IPv4 (fixes many Termux timeouts)
@@ -61,7 +60,6 @@ async function startBot() {
 
   throttleSends(sock);
   initReminders(sock);
-  startFuelWatcher(sock);
 
   // First time only: ask for a pairing code
   if (!sock.authState.creds.registered) {

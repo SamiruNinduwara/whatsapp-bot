@@ -6,7 +6,7 @@ import { sendWithLogo } from "../branding.js";
 const TABS = [
   { key: "ai", emoji: "🤖", title: "AI", commands: ["ai", "stt", "ocr", "tr"] },
   { key: "dl", emoji: "🎵", title: "Downloaders", commands: ["mp3", "mp4", "tiktok", "dl"] },
-  { key: "tools", emoji: "🛠️", title: "Tools", commands: ["sticker", "remind", "weather", "rates", "fuel", "fuelset", "fuelcheck", "logo", "img", "morning"] },
+  { key: "tools", emoji: "🛠️", title: "Tools", commands: ["sticker", "remind", "rates", "logo", "img", "morning"] },
   {
     key: "group",
     emoji: "👥",
@@ -28,7 +28,8 @@ function greeting() {
   const hour = new Date().getHours();
   if (hour < 12) return "Good morning";
   if (hour < 18) return "Good afternoon";
-  return "Good evening";
+  if (hour < 24) return "Good night";
+  return "Good morning";
 }
 
 function formatUptime(seconds) {
