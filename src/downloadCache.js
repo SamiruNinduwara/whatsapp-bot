@@ -5,7 +5,7 @@ import crypto from "crypto";
 import { fileURLToPath } from "url";
 import { config } from "./config.js";
 
-const ROOT = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DIR = path.join(ROOT, "data", "cache");
 const INDEX_FILE = path.join(DIR, "index.json");
 

@@ -11,7 +11,7 @@ const TABS = [
     key: "group",
     emoji: "👥",
     title: "Group",
-    commands: ["antilink", "welcome", "tagall", "kick", "promote", "demote", "mute", "unmute"],
+   commands: ["antilink", "welcome", "tagall", "add", "kick", "promote", "demote", "mute", "unmute"],
   },
   {
     key: "general",

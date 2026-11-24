@@ -1,5 +1,6 @@
 export const config = {
   prefix: ".",
+  defaultCountryCode: "94", // lets people type local numbers like 0771234567 in .add
   botName: "ASURA BOT",
   version: "1.0",
   developer: "Samiru Ninduwara",
