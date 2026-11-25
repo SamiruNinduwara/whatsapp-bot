@@ -64,9 +64,9 @@ async function startBot() {
   // First time only: ask for a pairing code
   if (!sock.authState.creds.registered) {
     if (!phoneNumber) {
-      console.log("Please give your number: node index.js 94771234567");
-      process.exit(1);
-    }
+  console.log("Please give your number when starting the bot.");
+  process.exit(1);
+}
     setTimeout(async () => {
       const code = await sock.requestPairingCode(phoneNumber);
       console.log("Pairing code:", code);
